@@ -13,7 +13,7 @@ import { createRng, randomSeed, seedToHex, hexToSeed } from './rng.js';
 import { computeLifespan }    from './actions.js';
 import { encodeWorld, decodeWorld } from './serializer.js';
 import { generateTerrain }    from './terrain-gen.js';
-import { ALL_TERRAINS }       from './terrains/index.js';
+import { ALL_TERRAINS, terrainOf } from './terrains/index.js';
 
 const WIDTH  = 10;
 const HEIGHT = 10;
@@ -480,6 +480,64 @@ function buildLegend() {
     }
   }
 }
+
+// ── Cell tooltip ──────────────────────────────────────────────────────────────
+const tooltipEl = document.getElementById('cell-tooltip');
+
+canvas.addEventListener('mousemove', e => {
+  const cellSize = canvas.width / WIDTH;
+  const rect = canvas.getBoundingClientRect();
+  const cx   = Math.floor((e.clientX - rect.left) / cellSize);
+  const cy   = Math.floor((e.clientY - rect.top)  / cellSize);
+  if (cx < 0 || cx >= WIDTH || cy < 0 || cy >= HEIGHT) return;
+
+  const lines = [];
+
+  // Terrain
+  const terrain = terrainOf(grid.get(cx, cy, LAYER_TERRAIN));
+  lines.push(`<span class="tt-layer">Terrain</span>`);
+  lines.push(terrain ? terrain.name : '<span class="tt-empty">—</span>');
+
+  // Vegetation
+  lines.push(`<span class="tt-layer">Vegetation</span>`);
+  const vegType = grid.get(cx, cy, LAYER_VEGETATION);
+  const vegKey  = ENTITY_KEYS.find(k => k.typeId === vegType && k.layer === LAYER_VEGETATION);
+  if (vegKey) {
+    const i   = cy * WIDTH + cx;
+    const age = grid.age[LAYER_VEGETATION][i];
+    const ls  = grid.lifespan[LAYER_VEGETATION][i];
+    lines.push(`${vegKey.icon} ${vegKey.label} &nbsp; age ${age}/${ls}`);
+  } else {
+    lines.push('<span class="tt-empty">—</span>');
+  }
+
+  // Animal
+  lines.push(`<span class="tt-layer">Animal</span>`);
+  const anType = grid.get(cx, cy, LAYER_ANIMALS);
+  const anKey  = ENTITY_KEYS.find(k => k.typeId === anType && k.layer === LAYER_ANIMALS);
+  if (anKey) {
+    const i      = cy * WIDTH + cx;
+    const age    = grid.age[LAYER_ANIMALS][i];
+    const ls     = grid.lifespan[LAYER_ANIMALS][i];
+    const energy = grid.energy[LAYER_ANIMALS][i].toFixed(1);
+    lines.push(`${anKey.icon} ${anKey.label} &nbsp; age ${age}/${ls} &nbsp; ⚡${energy}`);
+  } else {
+    lines.push('<span class="tt-empty">—</span>');
+  }
+
+  tooltipEl.innerHTML = lines.join('<br>');
+  tooltipEl.classList.remove('hidden');
+
+  // Position near cursor, keep inside viewport.
+  const tx = e.clientX + 14;
+  const ty = e.clientY + 14;
+  const tw = tooltipEl.offsetWidth;
+  const th = tooltipEl.offsetHeight;
+  tooltipEl.style.left = `${Math.min(tx, window.innerWidth  - tw - 8)}px`;
+  tooltipEl.style.top  = `${Math.min(ty, window.innerHeight - th - 8)}px`;
+});
+
+canvas.addEventListener('mouseleave', () => tooltipEl.classList.add('hidden'));
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 buildTagFilter();
