@@ -29,15 +29,24 @@ A browser-based explorer for cellular automata and ecosystem simulations.
 
 ```
 sign_of_life/
-├── index.html              # Entry point — canvas + UI shell
+├── index.html                   # Entry point — canvas + UI shell
 ├── src/
-│   ├── main.js             # Wires grid, renderer, loop, rules, UI events
-│   ├── grid.js             # Grid state: Uint8Array, get/set, neighbors, isFull
-│   ├── renderer.js         # Canvas draw: cell state → color
-│   ├── loop.js             # setTimeout tick loop, manual/auto mode, delay
+│   ├── main.js                  # Wires grid, renderer, loop, registries, UI
+│   ├── grid.js                  # Multi-layer SoA grid, accessors, spread targets
+│   ├── renderer.js              # Canvas: terrain color fill + entity icon overlay
+│   ├── loop.js                  # setTimeout tick loop, manual/auto mode, delay
+│   ├── rng.js                   # Seeded PRNG (mulberry32)
+│   ├── stats.js                 # Circular buffer for per-tick population snapshots
+│   ├── serializer.js            # World encode/decode → base64url share string
+│   ├── terrains/
+│   │   ├── index.js             # Terrain registry
+│   │   ├── soil.js
+│   │   ├── sand.js
+│   │   ├── water.js
+│   │   └── rock.js
 │   └── rules/
-│       ├── index.js        # Rule registry: register, enable/disable, applyAll
-│       └── grass-spread.js # Grass spreads to one random empty 4-neighbor/tick
+│       ├── index.js             # Rule registry: register, enable/disable, applyAll
+│       └── grass-spread.js
 ├── package.json
 ├── PLAN.md
 └── LICENSE
@@ -45,128 +54,151 @@ sign_of_life/
 
 ---
 
-## Rule Interface
+## Entity & Terrain Conventions
 
-Each rule is a JS module exporting:
+### Layers
+
+| Index | Name | Contents | Changes |
+|---|---|---|---|
+| 0 | terrain | soil, sand, water, rock | set at init, static for now |
+| 1 | vegetation | grass, tree, bush, aquatic grass | slowly |
+| 2 | animals | herbivore, predator, bird | fast |
+| 3 | events | fire, flood, drought | transient |
+
+Each layer is a `Uint8Array`. One entity maximum per layer per cell — no stacking.
+
+### Occupancy rules
+
+- **Vegetation layer:** one entity per cell. Entities replace each other (e.g. tree
+  overwrites grass). If the occupant is removed, the cell becomes empty and other
+  vegetation can claim it.
+- **Dependency:** rules declare what they consume. `needs: [GRASS]` = only grass
+  qualifies. `needs: [GRASS, TREE]` = either qualifies (OR logic).
+
+### Terrain effects
+
+Each terrain module exports an `effects` object — named numeric modifiers that rules
+query via `grid.terrainEffect(x, y, key)`. Default value is `1.0` (neutral) if the
+key is not present on a terrain type. Users can adjust effect values to change world
+behaviour without touching rule code.
 
 ```js
+// Example — rock terrain
 export default {
-  id: 'unique-id',          // stable identifier
-  name: 'Human name',
-  description: 'What this rule does.',
-  apply(grid) {
-    // Snapshot state before writing to avoid tick-order artifacts.
-    // Reads from grid, writes new state back in-place.
+  id: 'rock', name: 'Rock', color: '#6b6b6b',
+  /**
+   * Effects applied to entities on this terrain.
+   * All values are multipliers (1.0 = neutral) unless noted.
+   *
+   * @property {number} grassSpreadChance  - multiplier on grass spread probability
+   * @property {number} treeSpreadChance   - multiplier on tree spread probability
+   * @property {number} moveEnergyCost     - multiplier on animal movement cost
+   */
+  effects: {
+    grassSpreadChance: 0.2,  // grass barely spreads on rock
+    treeSpreadChance:  0.5,
+    moveEnergyCost:    1.5,
   }
 }
 ```
 
-Rules are registered in `src/rules/index.js`. The UI renders a checkbox per rule;
-enabled rules run in registration order each tick.
+### Entity definition
 
-Rule *parameters* (probability, range, thresholds) live as plain JS values inside
-the rule module — JSON-compatible, easy to expose in UI later.
-Rule *behavior* (the `apply` function) must stay as code; it cannot live in JSON.
+Each entity type (vegetation, animal, etc.) is described in the rule file that governs
+it, or in a shared constants module. Every entity must document:
+
+- `id` and `name` — stable identifier and display name
+- `icon` — emoji or unicode character rendered on canvas (e.g. `🌿`)
+- `layer` — which layer it lives on
+- `replaces` — list of entity states it can overwrite when spreading (empty = only EMPTY cells)
+- `needs` — list of entity states it requires to act (empty = no dependency)
+
+### Action dispatch
+
+Every rule that acts on individual cells uses weighted action selection via the seeded
+RNG. This applies to all entity types — vegetation and animals alike.
+
+```js
+// Rule actions definition
+actions: [
+  { action: 'SPREAD', weight: 0.7 },
+  { action: 'IDLE',   weight: 0.3 },
+]
+
+// Dispatcher (shared utility) — picks one action by weight using rng()
+function pickAction(actions, rng) { ... }
+```
+
+Rules implement a handler per action. IDLE always means "do nothing this tick."
+Weights are exposed as rule parameters, editable in UI.
 
 ---
 
 ## Architectural Decisions & Future Design
 
-These are not yet implemented but should inform every structural choice made now.
+### 1. Seeded PRNG ✓
 
-### 1. Seeded PRNG (reproducibility)
+mulberry32, seeded per-simulation. Init RNG (cell placement) and simulation RNG
+(rules) are separate sub-seeds derived from the same master seed, so rule RNG always
+starts clean regardless of grid size.
 
-`Math.random()` is not seedable — must be replaced with a small seedable PRNG
-(mulberry32 or xorshift32, ~5 lines, fast, good statistical quality).
-Every rule calls `rng()` instead of `Math.random()`.
+### 2. World Sharing & State Serialization ✓
 
-The seed is a 32-bit integer, displayed as a hex string (e.g. `a3f2c1b0`).
-Same seed + same initial state = identical replay, tick for tick.
+Binary layout (version + seed + dimensions + layer snapshots + rule config) encoded
+as base64url. Represents the *initial* state — loading a share code always starts
+from tick 0 and replays identically.
+For large grids: LZ-string compression to be added when needed.
 
-### 2. World Sharing & State Serialization
+### 3. Grid Structure — Structure of Arrays ✓
 
-A world can be shared as a compact string encoding:
+Each property is a separate typed array (`Uint8Array` for types, `Float32Array` for
+energy, `Uint16Array` for age). Rules that only touch one property iterate one flat
+buffer — cache-friendly at any grid size. Adding a trait = one new array.
 
-- **Seed** (4 bytes) — enough to replay from the beginning if no manual edits
-- **Rule configuration** — which rules are enabled, their parameter values
-- **Initial grid snapshot** — needed only if the user painted cells manually
-  before starting; base64 of the typed arrays, compressed if large
+### 4. Multi-Layer Grid ✓
 
-Target: a short URL-safe string that can be copy-pasted or appended to a URL.
-For large grids, the snapshot should be compressed (e.g. LZ-string).
+One `Uint8Array` per layer (terrain / vegetation / animals / events). Same cell index
+across all layers. Implemented. Rules declare which layers they read and write.
 
-### 3. Grid Structure — Structure of Arrays (SoA)
+### 5. Terrain Generation — Seed + Expand
 
-Current: one `Uint8Array` for cell type. Future cells need traits (energy, age, etc.).
+**Algorithm (chosen):** seed + expand BFS.
+1. Place M seed cells of a given terrain type, positions chosen by seeded RNG,
+   M proportional to the target percentage of total area.
+2. Expand each blob: repeatedly pick a random occupied cell and spread to one random
+   empty 4-neighbour, until the target cell count is reached.
+3. Process terrain types in priority order (water first, rock second, sand third,
+   remainder = soil).
 
-**Do not use Array of Structures** (`cells[i] = { type, energy, age }`):
-it fragments memory and is slow to iterate on large grids.
+Result: irregular, natural-looking clusters. Fully reproducible from seed.
+Percentages are set in UI per terrain type; remainder always goes to soil.
 
-**Use Structure of Arrays** instead:
+### 6. Statistics & History ✓
 
-```
-types[i]     Uint8Array    — entity type per cell (0 = empty)
-energy[i]    Float32Array  — energy level (future)
-age[i]       Uint16Array   — ticks alive (future)
-```
-
-Each property is a contiguous typed array. Rules that only touch `energy`
-iterate a single flat buffer — cache-friendly at any grid size.
-Adding a new trait = adding one new typed array, no restructuring needed.
-
-### 4. Multi-Layer Grid
-
-A single flat array cannot naturally represent multiple coexisting entities
-(e.g. grass + animal in the same cell). Solution: **one typed array per layer**.
-
-Proposed layers:
-
-| Layer | Contents | Changes |
-|---|---|---|
-| 0 — terrain | soil, rock, water | rarely |
-| 1 — vegetation | grass, tree, bush | slowly |
-| 2 — animals | herbivore, predator, bird | fast |
-| 3 — events | fire, flood, drought | transient |
-
-Each layer is its own `Uint8Array` (same index space). A cell can hold one
-entity per layer simultaneously. Rules declare which layers they read/write,
-making interactions explicit. A bird (layer 2) stands on grass (layer 1);
-fire (layer 3) burns vegetation (layer 1) and damages the animal (layer 2).
-
-One animal per cell per layer is usually realistic. If overflow is ever needed
-(e.g. a herd), a sparse `Map<cellIndex, Entity[]>` can handle exceptions without
-restructuring the main arrays.
-
-### 5. Statistics & History
-
-Each tick, record a snapshot of population per species per layer.
-Store snapshots in a **fixed-size circular buffer** (e.g. last 1000 ticks)
-backed by a typed array — bounded memory, fast to write.
-
-Rules log *interaction events* explicitly (predation, death, spread blocked)
-so dynamics can be derived, not just population counts.
-
-Post-simulation summary: peak populations, time to fill, interaction counts.
-Live display: population per species updated each tick.
+Fixed-size circular buffer of `Int32Array`. Per-tick: one count per tracked species.
+Rules log interaction events (predation, starvation, reproduction) explicitly — not
+derivable from population snapshots alone.
+Post-simulation summary: peak, average growth, interaction counts.
 Charts: added later on top of the same data.
 
-### 6. Mutations & Adaptation (long-term perspective)
+### 7. Mutations & Adaptation (long-term perspective)
 
-After terrain, vegetation, and animal layers are stable, the intended next step
-is to give creatures heritable traits that mutate across generations:
+After terrain + vegetation + animals are stable:
 
 - Each creature carries a trait vector (speed, aggression, heat tolerance, etc.)
-  stored in SoA `Float32Array` buffers alongside `types[]`
-- On reproduction, offspring inherit parent traits with small random perturbations
-  (the seeded PRNG ensures this is reproducible)
-- Rules can apply environmental pressure: a creature in a hot cell loses energy
-  faster unless its heat-tolerance trait is high enough
-- Over many generations, populations drift toward better-adapted trait profiles
+  in SoA `Float32Array` buffers — one array per trait, parallel to `types[]`
+- Reproduction: offspring = parent traits ± small seeded perturbation
+- Environmental pressure: terrain effects modulate energy cost, survival chance
+- Over generations, populations drift toward better-adapted trait profiles
+- Statistics layer surfaces which traits dominated and how fast adaptation occurred
 
-This is the natural extension of the layered + SoA architecture above.
-No special mechanism is needed beyond per-cell trait arrays and reproduction rules
-that copy + perturb trait values. The statistics layer will surface which traits
-dominated and how fast adaptation occurred.
+### 8. Visualization
+
+- **Terrain:** solid color fill per cell (defined in terrain module)
+- **Entities:** emoji/unicode icon centered over terrain fill (defined in rule/entity module)
+- **Legend:** sidebar listing all terrain types and active entity types with their
+  icon, color swatch, name, and one-line description; populated from registries
+- Future: color by trait value or cell age; zoom & pan; WebGL if canvas bottlenecks
 
 ---
 
@@ -174,67 +206,55 @@ dominated and how fast adaptation occurred.
 
 ### M1 — Grass Simulation ✓
 
-**Field:** 10×10, no wrap-around.
-**Entity:** Grass (single type). One cell seeded randomly at start.
-**Rule:** Each tick, every grass cell spreads to one random empty 4-neighbor.
-**End condition:** Simulation stops when field is full.
+10×10 field, single grass entity, spreads to random empty 4-neighbor each tick.
+Stops when field is full. Manual/auto tick, delay input, status line.
 
-- [x] `package.json` — Vite dev/build scripts
-- [x] `index.html` — canvas + UI shell
-- [x] `src/grid.js` — `Uint8Array`, `get/set`, `emptyNeighbors()`, `isFull()`
-- [x] `src/renderer.js` — draws grid to canvas
-- [x] `src/loop.js` — tick loop, manual/auto, configurable delay
-- [x] `src/rules/grass-spread.js` — grass spread rule
-- [x] `src/rules/index.js` — rule registry with enable/disable
-- [x] `src/main.js` — wires everything, builds rule checkboxes dynamically
+### M2 — Foundations ✓
 
-UI: canvas, Next Tick, Reset, Auto toggle, delay input, rule checkboxes, status line.
+Seeded PRNG, multi-layer SoA grid, stats circular buffer, world serialization,
+seed + share UI, rule registry with enable/disable.
 
-### M2 — Foundations for Growth ✓
+### M3 — Terrain, Trees & Richer Rules
 
-Preparatory refactors before adding more entities:
-
-- [x] Replace `Math.random()` with seeded PRNG module (`src/rng.js`)
-- [x] Expose seed in UI; allow entering a custom seed; show current seed
-- [x] Migrate grid to SoA: `types[]` now, placeholder arrays for future traits
-- [x] Add multi-layer support to `Grid` (at minimum terrain + vegetation layers)
-- [x] Add statistics: per-tick population snapshot, circular buffer, live count display
-- [x] World state serialization: encode seed + initial state → shareable string; decode on load
-
-### M3 — More Entities & Rules
-
-- [ ] Terrain layer: soil (default), water, rock — painted at init, static for now
-- [ ] Vegetation layer: tree (spreads slower than grass, blocks grass)
-- [ ] New rules: spread with probability, decay, inter-species competition
-- [ ] Random-fill and clear buttons
-- [ ] Rule parameter sliders/inputs in UI
+- [ ] `src/terrains/` — terrain registry + soil, sand, water, rock modules (with effects JSDoc)
+- [ ] `grid.terrainEffect(x, y, key)` — query terrain modifier at a cell
+- [ ] `grid.spreadTargets(x, y, layer, replaceableStates[])` — replaces `emptyNeighbors`
+- [ ] Terrain generation: seed+expand BFS, seeded RNG, configurable percentages
+- [ ] Terrain percentage UI (inputs per type, auto-remainder to soil)
+- [ ] `src/rules/grass-spread.js` — migrate to action dispatch (SPREAD / IDLE weights),
+      respect terrain `grassSpreadChance` effect
+- [ ] `src/rules/tree-spread.js` — tree spreads slowly, replaces grass, respects terrain
+- [ ] Fix stats delta display bug (always showed +0 in M2)
+- [ ] Multi-series stats: track grass and tree counts separately
+- [ ] Renderer: terrain color fill + entity icon overlay (two-pass draw)
+- [ ] Legend sidebar: terrain swatches + entity icons with descriptions
+- [ ] Reset re-generates terrain from current percentage settings + new seed
 
 ### M4 — Animals
 
-- [ ] Animal layer: herbivore (eats grass, moves, reproduces, dies of age/starvation)
-- [ ] Basic trait vector per animal (speed, energy-per-step)
+- [ ] Animal layer: herbivore (eats grass/tree, moves, reproduces, ages, starves)
+- [ ] SoA trait arrays: `energy[]`, `age[]` per animal cell
+- [ ] Action dispatch: MOVE, EAT, REPRODUCE, IDLE, DIE — weighted per species
 - [ ] Predator (eats herbivores)
-- [ ] Interaction event logging (predation, starvation, reproduction)
-- [ ] Statistics: dynamics charts (population over time per species)
+- [ ] Interaction event logging: predation, starvation, reproduction counts per tick
+- [ ] Stats expanded to animal species; live population display per species
 
 ### M5 — Interactivity & Sharing
 
-- [ ] Click/drag to paint cells on canvas (per layer)
-- [ ] Grid size selector
-- [ ] Share button: encode world → URL-safe string; decode on load
+- [ ] Click/drag to paint cells on canvas (per layer, per entity type)
+- [ ] Grid size selector (triggers re-init)
 - [ ] GitHub Actions → build → GitHub Pages
 
 ### M6 — Mutations & Adaptation
 
-- [ ] Heritable trait vectors (SoA `Float32Array` per trait)
-- [ ] Reproduction: offspring = parent traits + seeded perturbation
-- [ ] Environmental pressure rules (terrain affects energy cost)
-- [ ] Trait drift visualization: plot dominant trait values over generations
-- [ ] Post-simulation adaptation summary
+- [ ] Heritable trait vectors in SoA `Float32Array`
+- [ ] Reproduction with seeded trait perturbation
+- [ ] Environmental pressure rules (terrain effects on energy cost)
+- [ ] Trait drift visualization: dominant trait values over generations
 
-### M7 — Visualization Upgrades (later)
+### M7 — Visualization Upgrades
 
-- [ ] Color by trait value or cell age
+- [ ] Color by trait value or cell age gradient
 - [ ] Zoom & pan
 - [ ] Pattern presets / saved worlds library
 - [ ] WebGL renderer (if canvas becomes a bottleneck at large grid sizes)
