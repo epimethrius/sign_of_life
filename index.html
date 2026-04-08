@@ -14,10 +14,31 @@
       padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 18px;
     }
 
-    h1 { font-size: 1.2rem; letter-spacing: 0.1em; color: #aaa; }
+    /* ── Page title ── */
+    h1 { font-size: 1.2rem; letter-spacing: 0.12em; color: #aaa; }
+
+    /* ── Section headers ── */
+    .section-header {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #444;
+      border-bottom: 1px solid #1e1e1e;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+    }
+
+    /* ── Inline labels (seed, share, etc.) ── */
+    .inline-label {
+      font-size: 0.7rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      flex-shrink: 0;
+    }
 
     /* ── main layout: canvas + legend side by side ── */
     #world-area {
@@ -26,16 +47,17 @@
       gap: 20px;
     }
 
-    #grid-canvas { border: 1px solid #2a2a2a; display: block; flex-shrink: 0; }
+    #map-col { display: flex; flex-direction: column; gap: 6px; }
+
+    #grid-canvas { border: 1px solid #2a2a2a; display: block; }
 
     /* ── legend ── */
     #legend {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      min-width: 200px;
+      min-width: 210px;
     }
-
     .legend-group-label {
       font-size: 0.7rem;
       text-transform: uppercase;
@@ -44,35 +66,14 @@
       margin-top: 6px;
     }
     .legend-group-label:first-child { margin-top: 0; }
+    .legend-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #aaa; }
+    .legend-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid #333; flex-shrink: 0; }
+    .legend-icon { width: 18px; text-align: center; flex-shrink: 0; font-size: 1rem; }
 
-    .legend-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.82rem;
-      color: #aaa;
-    }
+    /* ── status + stats ── */
+    #status-line { font-size: 0.85rem; color: #888; min-height: 1.2em; }
+    #stats-summary { font-size: 0.8rem; color: #5a8f6a; min-height: 1em; }
 
-    .legend-swatch {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 1px solid #333;
-      flex-shrink: 0;
-    }
-
-    .legend-icon {
-      width: 18px;
-      text-align: center;
-      flex-shrink: 0;
-      font-size: 1rem;
-    }
-
-    /* ── status ── */
-    #status-line   { font-size: 0.85rem; color: #888; min-height: 1.2em; }
-    #stats-summary { font-size: 0.8rem;  color: #5a8f6a; min-height: 1em; }
-
-    /* ── stats table ── */
     #stats-wrapper {
       border-collapse: collapse;
       font-size: 0.8rem;
@@ -85,20 +86,11 @@
       padding: 0 16px 4px 0;
       border-bottom: 1px solid #222;
     }
-    #stats-wrapper td {
-      padding: 2px 16px 2px 0;
-      color: #999;
-    }
+    #stats-wrapper td { padding: 2px 16px 2px 0; color: #999; }
     #stats-wrapper td:first-child { color: #bbb; }
 
-    /* ── control rows ── */
-    .row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-    }
-
+    /* ── rows ── */
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
     .row label { display: flex; align-items: center; gap: 5px; font-size: 0.9rem; }
 
     /* ── buttons ── */
@@ -114,7 +106,7 @@
     button:hover:not(:disabled) { background: #2a2a2a; }
     button:disabled { opacity: 0.35; cursor: default; }
 
-    /* ── text inputs ── */
+    /* ── inputs ── */
     input[type="text"], input[type="number"] {
       background: #1a1a1a;
       color: #ccc;
@@ -123,37 +115,47 @@
       font-family: monospace;
       font-size: 0.85rem;
     }
-
     #seed-display { width: 90px; letter-spacing: 0.05em; }
     #input-delay  { width: 55px; }
-    #share-input  { width: 320px; color: #888; }
+    #share-input  { width: 300px; color: #888; }
+    input.pct     { width: 50px; }
+    input.pop-n   { width: 44px; }
 
-    input[type="number"].pct { width: 50px; }
-
-    /* ── section labels ── */
-    .section-label {
-      font-size: 0.7rem;
-      color: #555;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    /* ── terrain config ── */
-    #terrain-config {
-      display: flex;
-      flex-wrap: wrap;
+    /* ── initial population grid ── */
+    #pop-grid {
+      display: grid;
+      grid-template-columns: repeat(4, auto);
+      gap: 4px 16px;
       align-items: center;
-      gap: 10px;
       font-size: 0.85rem;
     }
+    #pop-grid label { display: flex; align-items: center; gap: 6px; }
+
+    /* ── terrain config ── */
+    #terrain-config { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 0.85rem; }
     #terrain-config label { display: flex; align-items: center; gap: 5px; }
     #soil-pct { color: #888; min-width: 70px; }
 
-    /* ── rules ── */
+    /* ── rules section ── */
+    #tag-filter { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+    .tag-btn {
+      background: #1a1a1a;
+      color: #666;
+      border: 1px solid #2e2e2e;
+      padding: 2px 9px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 0.75rem;
+    }
+    .tag-btn.active { color: #aaa; border-color: #555; background: #222; }
+
     #rules-list { display: flex; flex-direction: column; gap: 8px; }
     .rule-entry { display: flex; flex-direction: column; gap: 2px; }
+    .rule-entry.hidden { display: none; }
     .rule-entry > label { cursor: pointer; font-size: 0.9rem; }
     .rule-entry > label:hover { color: #fff; }
+    .rule-tags { display: flex; gap: 4px; margin-left: 20px; }
+    .rule-tag { font-size: 0.65rem; color: #3a6a3a; border: 1px solid #2a4a2a; padding: 0 5px; }
     .rule-desc { font-size: 0.75rem; color: #444; margin-left: 20px; }
     .rule-params { display: flex; gap: 12px; margin-left: 20px; margin-top: 3px; flex-wrap: wrap; }
     .param-label { font-size: 0.75rem; color: #666; display: flex; align-items: center; gap: 4px; }
@@ -165,80 +167,107 @@
 <body>
   <h1>Sign of Life</h1>
 
-  <!-- Canvas + Legend -->
-  <div id="world-area">
-    <canvas id="grid-canvas"></canvas>
-    <div id="legend">
-      <div id="legend-content"></div>
+  <!-- ── Map ── -->
+  <section>
+    <div class="section-header">Map</div>
+    <div id="world-area">
+      <div id="map-col">
+        <canvas id="grid-canvas"></canvas>
+      </div>
+      <div id="legend">
+        <div id="legend-content"></div>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Status -->
-  <div id="status-line">—</div>
-
-  <table id="stats-wrapper">
-    <thead>
-      <tr>
-        <th>Entity</th>
-        <th>Population</th>
-        <th>Births</th>
-        <th>Deaths</th>
-        <th>Death ratio</th>
-      </tr>
-    </thead>
-    <tbody id="stats-table"></tbody>
-  </table>
-
-  <div id="stats-summary"></div>
+  <!-- ── Statistics ── -->
+  <section>
+    <div class="section-header">Statistics</div>
+    <div id="status-line">—</div>
+    <table id="stats-wrapper">
+      <thead>
+        <tr>
+          <th>Entity</th>
+          <th>Population</th>
+          <th>Births</th>
+          <th>Deaths</th>
+          <th>Death ratio</th>
+        </tr>
+      </thead>
+      <tbody id="stats-table"></tbody>
+    </table>
+    <div id="stats-summary"></div>
+  </section>
 
   <hr />
 
-  <!-- Tick controls -->
-  <div class="row">
-    <button id="btn-next">Next Tick</button>
-    <button id="btn-reset">Reset</button>
-    <label>
-      <input type="checkbox" id="toggle-auto" />
-      Auto
-    </label>
-    <label>
-      Delay (ms): <input type="text" id="input-delay" value="500" />
-    </label>
-  </div>
-
-  <!-- Terrain config -->
-  <div>
-    <div class="section-label" style="margin-bottom:6px">Terrain composition</div>
-    <div id="terrain-config">
-      <label>Water %: <input type="number" class="pct" id="pct-water" value="15" min="0" max="100" /></label>
-      <label>Rock %:  <input type="number" class="pct" id="pct-rock"  value="10" min="0" max="100" /></label>
-      <label>Sand %:  <input type="number" class="pct" id="pct-sand"  value="10" min="0" max="100" /></label>
-      <span id="soil-pct">Soil: 65%</span>
+  <!-- ── Controls ── -->
+  <section>
+    <div class="section-header">Controls</div>
+    <div class="row">
+      <button id="btn-next">Next Tick</button>
+      <button id="btn-reset">Reset</button>
+      <label>
+        <input type="checkbox" id="toggle-auto" />
+        Auto
+      </label>
+      <label>
+        Delay (ms): <input type="text" id="input-delay" value="500" />
+      </label>
     </div>
-  </div>
+  </section>
 
-  <!-- Seed -->
-  <div class="row">
-    <span class="section-label">Seed</span>
-    <input type="text" id="seed-display" value="00000000" title="Enter hex seed and press Enter" />
-    <button id="btn-new-seed">New Seed</button>
-  </div>
+  <!-- ── Parameters ── -->
+  <section>
+    <div class="section-header">Parameters</div>
 
-  <!-- Share -->
-  <div class="row">
-    <span class="section-label">Share</span>
-    <input type="text" id="share-input" readonly placeholder="world code" />
-    <button id="btn-copy">Copy</button>
-    <button id="btn-load">Load</button>
-  </div>
+    <!-- Initial population -->
+    <div style="margin-bottom:12px">
+      <div class="inline-label" style="margin-bottom:6px;display:block">Initial population</div>
+      <div id="pop-grid">
+        <label>🌿 Grass <input type="number" class="pop-n" id="pop-grass" value="5" min="0" max="99" /></label>
+        <label>🌲 Tree <input type="number" class="pop-n" id="pop-tree" value="3" min="0" max="99" /></label>
+        <label>🐇 Herbivore <input type="number" class="pop-n" id="pop-herbivore" value="4" min="0" max="99" /></label>
+        <label>🦊 Predator <input type="number" class="pop-n" id="pop-predator" value="2" min="0" max="99" /></label>
+      </div>
+    </div>
+
+    <!-- Terrain composition -->
+    <div>
+      <div class="inline-label" style="margin-bottom:6px;display:block">Terrain composition</div>
+      <div id="terrain-config">
+        <label>Water %: <input type="number" class="pct" id="pct-water" value="15" min="0" max="100" /></label>
+        <label>Rock %:  <input type="number" class="pct" id="pct-rock"  value="10" min="0" max="100" /></label>
+        <label>Sand %:  <input type="number" class="pct" id="pct-sand"  value="10" min="0" max="100" /></label>
+        <span id="soil-pct">Soil: 65%</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Seed & Share ── -->
+  <section>
+    <div class="section-header">Seed &amp; Share</div>
+    <div class="row">
+      <span class="inline-label">Seed</span>
+      <input type="text" id="seed-display" value="00000000" title="Enter hex seed and press Enter" />
+      <button id="btn-new-seed">New Seed</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span class="inline-label">Share</span>
+      <input type="text" id="share-input" readonly placeholder="world code" />
+      <button id="btn-copy">Copy</button>
+      <button id="btn-load">Load</button>
+    </div>
+  </section>
 
   <hr />
 
-  <!-- Rules -->
-  <div>
-    <div class="section-label" style="margin-bottom:6px">Rules</div>
+  <!-- ── Rules ── -->
+  <section>
+    <div class="section-header">Rules</div>
+    <div id="tag-filter"></div>
     <div id="rules-list"></div>
-  </div>
+  </section>
 
   <script type="module" src="/src/main.js"></script>
 </body>

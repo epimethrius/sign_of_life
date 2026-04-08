@@ -4,6 +4,8 @@ import { effectOf } from '../terrains/index.js';
 
 export default {
   id: 'predator-behavior',
+  category: 'Animals',
+  tags: ['animal', 'predator', 'behavior'],
 
   entity: {
     typeId:             PREDATOR,
@@ -14,10 +16,12 @@ export default {
     baseLifespan:       20,
     lifespanVariance:   0.2,
     baseEnergy:         15,
-    energyDecayPerTick: 1.2,       // higher upkeep than herbivore
+    energyDecayPerTick: 1.2,
     energyFromHerbivore: 12,
     reproThreshold:     20,
     reproCost:          10,
+    // Spawn constraint: place within 2 cells (Chebyshev) of a herbivore.
+    spawnNearFood: { layer: LAYER_ANIMALS, types: [HERBIVORE] },
   },
 
   name: 'Predator Behaviour',

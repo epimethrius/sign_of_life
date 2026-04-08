@@ -2,6 +2,8 @@ import { EMPTY, LAYER_VEGETATION } from '../grid.js';
 
 export default {
   id: 'vegetation-aging',
+  category: 'Vegetation',
+  tags: ['vegetation', 'aging'],
   entity: null,
   name: 'Vegetation Aging',
   description: 'Vegetation dies when its lifespan expires, freeing the cell.',

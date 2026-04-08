@@ -4,6 +4,8 @@ import { effectOf } from '../terrains/index.js';
 
 export default {
   id: 'herbivore-behavior',
+  category: 'Animals',
+  tags: ['animal', 'herbivore', 'behavior'],
 
   entity: {
     typeId:             HERBIVORE,
@@ -14,11 +16,13 @@ export default {
     baseLifespan:       15,
     lifespanVariance:   0.2,
     baseEnergy:         10,
-    energyDecayPerTick: 0.8,       // energy lost passively each tick
+    energyDecayPerTick: 0.8,
     energyFromGrass:    6,
     energyFromTree:     3,
-    reproThreshold:     15,        // minimum energy to reproduce
-    reproCost:          8,         // energy spent by parent on offspring
+    reproThreshold:     12,        // lowered so reproduction is observable
+    reproCost:          8,
+    // Spawn constraint: place within 2 cells (Chebyshev) of compatible food.
+    spawnNearFood: { layer: LAYER_VEGETATION, types: [GRASS, TREE] },
   },
 
   name: 'Herbivore Behaviour',

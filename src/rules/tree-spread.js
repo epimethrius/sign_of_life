@@ -4,6 +4,8 @@ import { effectOf } from '../terrains/index.js';
 
 export default {
   id: 'tree-spread',
+  category: 'Vegetation',
+  tags: ['vegetation', 'spread'],
 
   // Entity metadata used by renderer, legend, and aging rule.
   entity: {
