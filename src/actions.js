@@ -28,26 +28,41 @@ export function waterProximityBonus(grid, x, y) {
 }
 
 /**
- * Like pickAction, but scales EAT/MOVE weights up and REPRODUCE/IDLE weights
- * down when the animal is hungry.
+ * Returns the [x, y] of the nearest cell on foodLayer containing one of
+ * foodTypes, using Manhattan distance. Returns null if none exists.
  *
- * @param {Array<{action: string, weight: number}>} baseActions
- * @param {number} energy          Current energy level.
- * @param {number} reproThreshold  Energy considered "full" (used as reference).
- * @param {function(): number} rng
- * @returns {string} the chosen action name
+ * @param {Grid}     grid
+ * @param {number}   x
+ * @param {number}   y
+ * @param {number}   foodLayer
+ * @param {number[]} foodTypes
+ * @returns {[number, number] | null}
  */
-export function pickActionDynamic(baseActions, energy, reproThreshold, rng) {
-  // hunger: 0 when energy >= reproThreshold (well-fed), 1 when energy <= 0 (starving).
-  const hunger = 1 - Math.min(1, Math.max(0, energy / reproThreshold));
-  const adjusted = baseActions.map(({ action, weight }) => {
-    if (action === 'EAT' || action === 'MOVE')
-      return { action, weight: weight * (1 + hunger * 2) };
-    if (action === 'REPRODUCE' || action === 'IDLE')
-      return { action, weight: weight * (1 - hunger * 0.85) };
-    return { action, weight };
-  });
-  return pickAction(adjusted, rng);
+export function nearestFoodCell(grid, x, y, foodLayer, foodTypes) {
+  let bestDist = Infinity;
+  let bestPos  = null;
+  for (let fy = 0; fy < grid.height; fy++) {
+    for (let fx = 0; fx < grid.width; fx++) {
+      if (!foodTypes.includes(grid.get(fx, fy, foodLayer))) continue;
+      const dist = Math.abs(fx - x) + Math.abs(fy - y);
+      if (dist < bestDist) { bestDist = dist; bestPos = [fx, fy]; }
+    }
+  }
+  return bestPos;
+}
+
+/**
+ * Returns all 4-neighbour cells that are non-water and unoccupied on animalLayer.
+ *
+ * @param {Grid}   grid
+ * @param {number} x
+ * @param {number} y
+ * @param {number} animalLayer
+ * @returns {[number, number][]}
+ */
+export function emptyAnimalNeighbors(grid, x, y, animalLayer) {
+  return grid.spreadTargets(x, y, animalLayer, [])
+    .filter(([nx, ny]) => grid.get(nx, ny, LAYER_TERRAIN) !== WATER);
 }
 
 /**

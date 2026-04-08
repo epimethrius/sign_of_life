@@ -1,6 +1,8 @@
-import { HERBIVORE, GRASS, TREE, WATER, LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
-import { pickActionDynamic, computeLifespan } from '../actions.js';
+import { HERBIVORE, GRASS, TREE, LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
+import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
+
+const FOOD_TYPES = [GRASS, TREE];
 
 export default {
   id: 'herbivore-behavior',
@@ -8,111 +10,118 @@ export default {
   tags: ['animal', 'herbivore', 'behavior'],
 
   entity: {
-    typeId:             HERBIVORE,
-    layer:              LAYER_ANIMALS,
-    name:               'Herbivore',
-    icon:               '🐇',
-    description:        'Eats grass and trees. Moves, reproduces, dies of age or starvation.',
-    baseLifespan:       15,
-    lifespanVariance:   0.2,
-    baseEnergy:         10,
-    energyDecayPerTick: 0.8,
-    energyFromGrass:    6,
-    energyFromTree:     3,
+    typeId:               HERBIVORE,
+    layer:                LAYER_ANIMALS,
+    name:                 'Herbivore',
+    icon:                 '🐇',
+    description:          'Eats grass and trees. Moves, reproduces, dies of age or starvation.',
+    baseLifespan:         15,
+    lifespanVariance:     0.2,
+    baseEnergy:           10,
+    energyDecayPerTick:   0.8,
+    energyFromGrass:      6,
+    energyFromTree:       3,
     reproThreshold:       12,
     reproCost:            8,
-    reproCooldownDivisor: 4,  // cooldown = floor(lifespan / divisor) ticks after each birth
-    // Spawn constraint: place within 2 cells (Chebyshev) of compatible food.
-    spawnNearFood: { layer: LAYER_VEGETATION, types: [GRASS, TREE] },
+    reproCooldownDivisor: 4,
+    spawnNearFood: { layer: LAYER_VEGETATION, types: FOOD_TYPES },
   },
 
   name: 'Herbivore Behaviour',
-  description: 'Herbivores eat vegetation, wander, reproduce, and die of age or starvation.',
-
-  actions: [
-    { action: 'EAT',       weight: 0.40 },
-    { action: 'MOVE',      weight: 0.35 },
-    { action: 'REPRODUCE', weight: 0.15 },
-    { action: 'IDLE',      weight: 0.10 },
-  ],
+  description: 'Herbivores seek food when hungry, reproduce when well-fed, otherwise wander.',
 
   apply(grid, rng, events, movedThisTick = new Set()) {
     const e = this.entity;
-    const animalLayer = LAYER_ANIMALS;
+    const al = LAYER_ANIMALS;
+    const hungerThreshold = e.reproThreshold * (2 / 3);
 
-    // Snapshot occupied cells before writing.
     const cells = [];
-    for (let y = 0; y < grid.height; y++) {
-      for (let x = 0; x < grid.width; x++) {
-        if (grid.get(x, y, animalLayer) === HERBIVORE) cells.push([x, y]);
-      }
-    }
+    for (let y = 0; y < grid.height; y++)
+      for (let x = 0; x < grid.width; x++)
+        if (grid.get(x, y, al) === HERBIVORE) cells.push([x, y]);
 
     for (const [x, y] of cells) {
-      // Skip if already killed this tick (e.g. by a predator earlier in the loop).
-      if (grid.get(x, y, animalLayer) !== HERBIVORE) continue;
-
+      if (grid.get(x, y, al) !== HERBIVORE) continue;
       const i = y * grid.width + x;
 
-      // ── Passive energy decay (terrain-modified) ─────────────────────────────
+      // ── Passive energy decay ─────────────────────────────────────────────────
       const terrainCost = effectOf(grid.get(x, y, LAYER_TERRAIN), 'moveEnergyCost');
-      grid.energy[animalLayer][i] -= e.energyDecayPerTick * terrainCost;
+      grid.energy[al][i] -= e.energyDecayPerTick * terrainCost;
 
-      // ── Age & repro cooldown ────────────────────────────────────────────────
-      grid.age[animalLayer][i]++;
-      if (grid.reproCooldown[animalLayer][i] > 0) grid.reproCooldown[animalLayer][i]--;
+      // ── Age & repro cooldown ─────────────────────────────────────────────────
+      grid.age[al][i]++;
+      if (grid.reproCooldown[al][i] > 0) grid.reproCooldown[al][i]--;
 
-      // ── Death: starvation or old age ────────────────────────────────────────
-      const starved = grid.energy[animalLayer][i] <= 0;
-      const aged    = grid.lifespan[animalLayer][i] > 0
-                   && grid.age[animalLayer][i] >= grid.lifespan[animalLayer][i];
-
+      // ── Death ────────────────────────────────────────────────────────────────
+      const starved = grid.energy[al][i] <= 0;
+      const aged    = grid.lifespan[al][i] > 0 && grid.age[al][i] >= grid.lifespan[al][i];
       if (starved || aged) {
-        events.log(starved ? 'death-starve' : 'death-age', HERBIVORE, animalLayer);
-        grid.kill(x, y, animalLayer);
+        events.log(starved ? 'death-starve' : 'death-age', HERBIVORE, al);
+        grid.kill(x, y, al);
         continue;
       }
 
-      // ── Action ──────────────────────────────────────────────────────────────
-      const action = pickActionDynamic(this.actions, grid.energy[animalLayer][i], e.reproThreshold, rng);
+      const energy = grid.energy[al][i];
 
-      if (action === 'EAT') {
+      // ── 1. Hungry: seek food deterministically ───────────────────────────────
+      if (energy < hungerThreshold) {
         const vegType = grid.get(x, y, LAYER_VEGETATION);
-        if (vegType === GRASS) {
-          grid.energy[animalLayer][i] += e.energyFromGrass;
+        if (vegType === GRASS || vegType === TREE) {
+          // Food is right here — eat it.
+          grid.energy[al][i] += vegType === GRASS ? e.energyFromGrass : e.energyFromTree;
           grid.kill(x, y, LAYER_VEGETATION);
-          events.log('eat-grass', HERBIVORE, animalLayer);
-        } else if (vegType === TREE) {
-          grid.energy[animalLayer][i] += e.energyFromTree;
-          grid.kill(x, y, LAYER_VEGETATION);
-          events.log('eat-tree', HERBIVORE, animalLayer);
-        }
-
-      } else if (action === 'MOVE') {
-        const targets = grid.spreadTargets(x, y, animalLayer, [])
-          .filter(([nx, ny]) => grid.get(nx, ny, LAYER_TERRAIN) !== WATER);
-        if (targets.length > 0) {
-          const [nx, ny] = targets[Math.floor(rng() * targets.length)];
-          grid.move(x, y, nx, ny, animalLayer);
-          movedThisTick.add(ny * grid.width + nx);
-        }
-
-      } else if (action === 'REPRODUCE') {
-        if (grid.energy[animalLayer][i] >= e.reproThreshold
-            && grid.reproCooldown[animalLayer][i] === 0) {
-          const targets = grid.spreadTargets(x, y, animalLayer, [])
-            .filter(([nx, ny]) => grid.get(nx, ny, LAYER_TERRAIN) !== WATER);
-          if (targets.length > 0) {
+          events.log(vegType === GRASS ? 'eat-grass' : 'eat-tree', HERBIVORE, al);
+        } else {
+          // Move toward the nearest food cell.
+          const nearest = nearestFoodCell(grid, x, y, LAYER_VEGETATION, FOOD_TYPES);
+          const targets = emptyAnimalNeighbors(grid, x, y, al);
+          if (nearest && targets.length > 0) {
+            const [fx, fy] = nearest;
+            let bestDist = Infinity;
+            for (const [nx, ny] of targets) {
+              const d = Math.abs(nx - fx) + Math.abs(ny - fy);
+              if (d < bestDist) bestDist = d;
+            }
+            const best = targets.filter(([nx, ny]) => Math.abs(nx - fx) + Math.abs(ny - fy) === bestDist);
+            const [nx, ny] = best[Math.floor(rng() * best.length)];
+            grid.move(x, y, nx, ny, al);
+            movedThisTick.add(ny * grid.width + nx);
+          } else if (targets.length > 0) {
+            // No food exists anywhere — wander randomly.
             const [nx, ny] = targets[Math.floor(rng() * targets.length)];
-            grid.energy[animalLayer][i] -= e.reproCost;
-            const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
-            grid.place(nx, ny, HERBIVORE, animalLayer, ls, e.baseEnergy);
-            grid.reproCooldown[animalLayer][i] = Math.max(1, Math.floor(grid.lifespan[animalLayer][i] / e.reproCooldownDivisor));
-            events.log('birth', HERBIVORE, animalLayer);
+            grid.move(x, y, nx, ny, al);
+            movedThisTick.add(ny * grid.width + nx);
           }
         }
+
+      // ── 2. Well-fed and ready to reproduce ───────────────────────────────────
+      } else if (energy >= e.reproThreshold && grid.reproCooldown[al][i] === 0) {
+        const targets = emptyAnimalNeighbors(grid, x, y, al);
+        if (targets.length > 0) {
+          const [nx, ny] = targets[Math.floor(rng() * targets.length)];
+          grid.energy[al][i] -= e.reproCost;
+          const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
+          const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
+          grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
+          // Parent cooldown.
+          grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
+          // Newborn starts on cooldown so it can't reproduce immediately.
+          grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
+          events.log('birth', HERBIVORE, al);
+        }
+
+      // ── 3. Well-fed but on cooldown: wander or idle ──────────────────────────
+      } else {
+        if (rng() < 0.6) {
+          const targets = emptyAnimalNeighbors(grid, x, y, al);
+          if (targets.length > 0) {
+            const [nx, ny] = targets[Math.floor(rng() * targets.length)];
+            grid.move(x, y, nx, ny, al);
+            movedThisTick.add(ny * grid.width + nx);
+          }
+        }
+        // else IDLE
       }
-      // IDLE: do nothing
     }
   },
 };

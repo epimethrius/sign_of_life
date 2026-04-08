@@ -2,20 +2,17 @@ import grassSpread       from './grass-spread.js';
 import treeSpread        from './tree-spread.js';
 import herbivoreBehavior from './herbivore-behavior.js';
 import predatorBehavior  from './predator-behavior.js';
-import animalSeekFood    from './animal-seek-food.js';
 import vegetationAging   from './vegetation-aging.js';
 
 // Application order:
 //   1. Vegetation spreads.
-//   2. Animals act (eat, move, reproduce). Death from starvation/age is inline.
-//   3. Food-seeking: hungry animals take one extra step toward food.
-//   4. Vegetation ages/dies.
+//   2. Animals act — priority-based: seek food when hungry, reproduce when well-fed, wander otherwise.
+//   3. Vegetation ages/dies.
 export const ALL_RULES = [
   grassSpread,
   treeSpread,
   herbivoreBehavior,
   predatorBehavior,
-  animalSeekFood,
   vegetationAging,
 ];
 
