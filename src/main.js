@@ -512,7 +512,7 @@ canvas.addEventListener('mousemove', e => {
   const vegType = grid.get(cx, cy, LAYER_VEGETATION);
   const vegKey  = ENTITY_KEYS.find(k => k.typeId === vegType && k.layer === LAYER_VEGETATION);
   if (vegKey) {
-    const i   = cy * WIDTH + cx;
+    const i   = cy * grid.width + cx;
     const age = grid.age[LAYER_VEGETATION][i];
     const ls  = grid.lifespan[LAYER_VEGETATION][i];
     lines.push(`${vegKey.icon} ${vegKey.label} &nbsp; age ${age}/${ls}`);
@@ -525,7 +525,7 @@ canvas.addEventListener('mousemove', e => {
   const anType = grid.get(cx, cy, LAYER_ANIMALS);
   const anKey  = ENTITY_KEYS.find(k => k.typeId === anType && k.layer === LAYER_ANIMALS);
   if (anKey) {
-    const i      = cy * WIDTH + cx;
+    const i      = cy * grid.width + cx;
     const age    = grid.age[LAYER_ANIMALS][i];
     const ls     = grid.lifespan[LAYER_ANIMALS][i];
     const energy = grid.energy[LAYER_ANIMALS][i].toFixed(1);
