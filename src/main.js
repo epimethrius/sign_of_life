@@ -289,7 +289,17 @@ inputDelay.addEventListener('change', () => {
 });
 btnNewSeed.addEventListener('click', () => init());
 gridSizeEl.addEventListener('change', () => {
-  const size = parseInt(gridSizeEl.value, 10);
+  const size    = parseInt(gridSizeEl.value, 10);
+  const oldArea = grid.width * grid.height;
+  const newArea = size * size;
+  const ratio   = newArea / oldArea;
+
+  // Scale all population inputs proportionally to the new grid area.
+  for (const inp of Object.values(popInputs).concat(Object.values(popInputAnimals))) {
+    if (!inp) continue;
+    inp.value = Math.max(1, Math.round(parseInt(inp.value, 10) * ratio));
+  }
+
   loop.stop();
   grid     = new Grid(size, size);
   renderer = new Renderer(canvas, grid);
