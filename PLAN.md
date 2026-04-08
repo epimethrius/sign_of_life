@@ -190,16 +190,16 @@ dominated and how fast adaptation occurred.
 
 UI: canvas, Next Tick, Reset, Auto toggle, delay input, rule checkboxes, status line.
 
-### M2 — Foundations for Growth
+### M2 — Foundations for Growth ✓
 
 Preparatory refactors before adding more entities:
 
-- [ ] Replace `Math.random()` with seeded PRNG module (`src/rng.js`)
-- [ ] Expose seed in UI; allow entering a custom seed; show current seed
-- [ ] Migrate grid to SoA: `types[]` now, placeholder arrays for future traits
-- [ ] Add multi-layer support to `Grid` (at minimum terrain + vegetation layers)
-- [ ] Add statistics: per-tick population snapshot, circular buffer, live count display
-- [ ] World state serialization: encode seed + initial state → shareable string; decode on load
+- [x] Replace `Math.random()` with seeded PRNG module (`src/rng.js`)
+- [x] Expose seed in UI; allow entering a custom seed; show current seed
+- [x] Migrate grid to SoA: `types[]` now, placeholder arrays for future traits
+- [x] Add multi-layer support to `Grid` (at minimum terrain + vegetation layers)
+- [x] Add statistics: per-tick population snapshot, circular buffer, live count display
+- [x] World state serialization: encode seed + initial state → shareable string; decode on load
 
 ### M3 — More Entities & Rules
 

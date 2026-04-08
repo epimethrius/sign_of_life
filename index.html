@@ -14,67 +14,74 @@
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 12px;
+      gap: 14px;
       padding: 24px;
     }
 
     h1 { font-size: 1.2rem; letter-spacing: 0.1em; color: #aaa; }
 
-    #grid-canvas {
-      border: 1px solid #333;
-      display: block;
-    }
+    #grid-canvas { border: 1px solid #2a2a2a; display: block; }
 
-    #status-line {
-      font-size: 0.85rem;
-      color: #888;
-      min-height: 1.2em;
-    }
+    /* ── status ── */
+    #status-line { font-size: 0.85rem; color: #888; min-height: 1.2em; }
 
-    #status-line .done { color: #6dbf6d; }
-
-    #controls {
+    /* ── rows ── */
+    .row {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 14px;
+      gap: 10px;
     }
 
+    .row label { display: flex; align-items: center; gap: 5px; font-size: 0.9rem; }
+
+    /* ── buttons ── */
     button {
-      background: #222;
+      background: #1e1e1e;
       color: #ccc;
-      border: 1px solid #444;
+      border: 1px solid #3a3a3a;
       padding: 4px 12px;
       cursor: pointer;
       font-family: monospace;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
-    button:hover { background: #333; }
-    button:disabled { opacity: 0.4; cursor: default; }
+    button:hover:not(:disabled) { background: #2a2a2a; }
+    button:disabled { opacity: 0.35; cursor: default; }
 
-    label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
-
+    /* ── text inputs ── */
     input[type="text"] {
       background: #1a1a1a;
       color: #ccc;
-      border: 1px solid #444;
-      padding: 3px 6px;
+      border: 1px solid #3a3a3a;
+      padding: 3px 7px;
       font-family: monospace;
-      font-size: 0.9rem;
-      width: 60px;
+      font-size: 0.85rem;
     }
 
-    #rules-section { font-size: 0.9rem; }
-    #rules-section strong { display: block; margin-bottom: 6px; color: #888; }
-    #rules-list { display: flex; flex-direction: column; gap: 4px; }
-    #rules-list label { cursor: pointer; }
-    #rules-list label:hover { color: #fff; }
+    #seed-display  { width: 90px; letter-spacing: 0.05em; }
+    #input-delay   { width: 55px; }
+    #share-input   { width: 340px; color: #888; }
 
-    .rule-desc {
+    /* ── section labels ── */
+    .section-label {
       font-size: 0.75rem;
       color: #555;
-      margin-left: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 2px;
     }
+
+    /* ── stats ── */
+    #stats-live    { font-size: 0.8rem; color: #666; min-height: 1em; }
+    #stats-summary { font-size: 0.8rem; color: #5a8f6a; min-height: 1em; }
+
+    /* ── rules ── */
+    #rules-list { display: flex; flex-direction: column; gap: 5px; }
+    #rules-list label { cursor: pointer; font-size: 0.9rem; }
+    #rules-list label:hover { color: #fff; }
+    .rule-desc { font-size: 0.75rem; color: #444; margin-left: 20px; }
+
+    hr { border: none; border-top: 1px solid #222; width: 100%; }
   </style>
 </head>
 <body>
@@ -82,9 +89,14 @@
 
   <canvas id="grid-canvas"></canvas>
 
-  <div id="status-line">Generation: 0 | Grass: 1 / 100</div>
+  <div id="status-line">—</div>
+  <div id="stats-live"></div>
+  <div id="stats-summary"></div>
 
-  <div id="controls">
+  <hr />
+
+  <!-- Tick controls -->
+  <div class="row">
     <button id="btn-next">Next Tick</button>
     <button id="btn-reset">Reset</button>
     <label>
@@ -92,13 +104,30 @@
       Auto
     </label>
     <label>
-      Delay (ms):
-      <input type="text" id="input-delay" value="500" />
+      Delay (ms): <input type="text" id="input-delay" value="500" />
     </label>
   </div>
 
-  <div id="rules-section">
-    <strong>Rules</strong>
+  <!-- Seed -->
+  <div class="row">
+    <span class="section-label" style="margin-bottom:0">Seed</span>
+    <input type="text" id="seed-display" value="00000000" title="Enter hex seed and press Enter" />
+    <button id="btn-new-seed">New Seed</button>
+  </div>
+
+  <!-- Share -->
+  <div class="row">
+    <span class="section-label" style="margin-bottom:0">Share</span>
+    <input type="text" id="share-input" readonly placeholder="world code" />
+    <button id="btn-copy">Copy</button>
+    <button id="btn-load">Load</button>
+  </div>
+
+  <hr />
+
+  <!-- Rules -->
+  <div>
+    <div class="section-label">Rules</div>
     <div id="rules-list"></div>
   </div>
 
