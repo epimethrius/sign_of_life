@@ -33,7 +33,7 @@ export class Renderer {
     const { ctx, grid } = this;
     const cellInner = CELL_SIZE - GAP;
 
-    ctx.fillStyle = '#111';
+    ctx.fillStyle = '#e8e8e8';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     for (let y = 0; y < grid.height; y++) {
