@@ -4,6 +4,7 @@ import { Loop } from './loop.js';
 import { StatsBuffer } from './stats.js';
 import { createRuleRegistry } from './rules/index.js';
 import { createRng, randomSeed, seedToHex, hexToSeed } from './rng.js';
+import { computeLifespan } from './actions.js';
 import { encodeWorld, decodeWorld } from './serializer.js';
 import { generateTerrain } from './terrain-gen.js';
 import { ALL_TERRAINS } from './terrains/index.js';
@@ -125,14 +126,23 @@ function init(seed) {
   renderer.draw();
 }
 
-/** Place one cell of `entityType` on the given layer, avoiding water and existing occupied cells. */
+/**
+ * Place one seed cell of `entityType` on the given layer, avoiding water and
+ * already-occupied cells. Assigns a randomised lifespan from the entity's rule.
+ */
 function _seedEntity(grid, entityType, layer, rng) {
+  // Find the rule that owns this entity type to read its lifespan params.
+  const rule = rules.rules.find(r => r.entity?.typeId === entityType && r.entity?.layer === layer);
+  const baseLifespan    = rule?.entity?.baseLifespan    ?? 0;
+  const lifespanVariance = rule?.entity?.lifespanVariance ?? 0;
+
   for (let attempt = 0; attempt < 200; attempt++) {
     const x = Math.floor(rng() * WIDTH);
     const y = Math.floor(rng() * HEIGHT);
     if (grid.get(x, y, LAYER_TERRAIN) === WATER) continue;
     if (grid.get(x, y, layer) !== 0) continue;
-    grid.set(x, y, entityType, layer);
+    const ls = baseLifespan > 0 ? computeLifespan(baseLifespan, lifespanVariance, rng) : 0;
+    grid.place(x, y, entityType, layer, ls);
     return;
   }
 }
@@ -225,6 +235,8 @@ btnLoad.addEventListener('click', () => {
     const decoded = decodeWorld(shareInput.value.trim());
     for (let l = 0; l < decoded.layers.length && l < grid.layers.length; l++) {
       grid.layers[l].set(decoded.layers[l]);
+      grid.age[l].fill(0);
+      if (decoded.lifespans?.[l]) grid.lifespan[l].set(decoded.lifespans[l]);
     }
     rules.setEnabledByIndices(decoded.enabledRuleIndices);
     rebuildRuleCheckboxes();
@@ -256,6 +268,9 @@ function rebuildRuleCheckboxes() {
   rulesList.innerHTML = '';
   for (const rule of rules.rules) {
     const wrapper  = document.createElement('div');
+    wrapper.className = 'rule-entry';
+
+    // Enable/disable checkbox + rule name
     const lbl      = document.createElement('label');
     const checkbox = document.createElement('input');
     checkbox.type    = 'checkbox';
@@ -264,12 +279,54 @@ function rebuildRuleCheckboxes() {
     lbl.appendChild(checkbox);
     lbl.appendChild(document.createTextNode(` ${rule.name}`));
     wrapper.appendChild(lbl);
+
+    // Description
     const desc = document.createElement('div');
     desc.className   = 'rule-desc';
     desc.textContent = rule.description;
     wrapper.appendChild(desc);
+
+    // Lifespan params — only for entity rules that have a baseLifespan
+    if (rule.entity?.baseLifespan !== undefined) {
+      const params = document.createElement('div');
+      params.className = 'rule-params';
+
+      params.appendChild(_makeNumberInput(
+        'Lifespan (ticks)',
+        rule.entity.baseLifespan,
+        1, 9999,
+        v => { rule.entity.baseLifespan = v; }
+      ));
+      params.appendChild(_makeNumberInput(
+        'Variance (%)',
+        Math.round(rule.entity.lifespanVariance * 100),
+        0, 100,
+        v => { rule.entity.lifespanVariance = v / 100; }
+      ));
+
+      wrapper.appendChild(params);
+    }
+
     rulesList.appendChild(wrapper);
   }
+}
+
+function _makeNumberInput(labelText, initialValue, min, max, onChange) {
+  const wrap  = document.createElement('label');
+  wrap.className = 'param-label';
+  const input = document.createElement('input');
+  input.type  = 'number';
+  input.className = 'param-input';
+  input.value = initialValue;
+  input.min   = min;
+  input.max   = max;
+  input.addEventListener('change', () => {
+    const v = parseFloat(input.value);
+    if (!isNaN(v)) onChange(v);
+  });
+  wrap.appendChild(document.createTextNode(labelText + ': '));
+  wrap.appendChild(input);
+  return wrap;
 }
 
 // ── Legend ────────────────────────────────────────────────────────────────────

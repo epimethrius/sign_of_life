@@ -1,21 +1,26 @@
 import { NUM_LAYERS } from './grid.js';
-import { seedToHex } from './rng.js';
 
-const VERSION = 1;
+// Bump version when the binary layout changes.
+const VERSION = 2;
 
 // ── Encode ────────────────────────────────────────────────────────────────────
 //
-// Binary layout:
-//   [0]      version (uint8)
-//   [1..4]   seed    (uint32 big-endian)
-//   [5..6]   width   (uint16 big-endian)
-//   [7..8]   height  (uint16 big-endian)
-//   [9]      numLayers (uint8)
-//   [10..]   layer data: numLayers × (width × height) bytes
+// Binary layout (version 2):
+//   [0]      version    (uint8)
+//   [1..4]   seed       (uint32 big-endian)
+//   [5..6]   width      (uint16 big-endian)
+//   [7..8]   height     (uint16 big-endian)
+//   [9]      numLayers  (uint8)
+//   per layer:
+//     [w*h]     types    (uint8 per cell)
+//     [w*h * 2] lifespan (uint16 big-endian per cell)
 //   [n]      numEnabledRules (uint8)
-//   [n+1..]  enabled rule indices (one uint8 each)
+//   [n+1..]  enabled rule indices (uint8 each)
 //
-// The result is base64url-encoded (no padding, URL-safe).
+// age[] is NOT serialized — at the initial state (what share strings capture)
+// all entities have age = 0.
+//
+// Result is base64url-encoded (no padding, URL-safe).
 
 export function encodeWorld(grid, seed, ruleRegistry) {
   const { width, height, size } = grid;
@@ -24,23 +29,29 @@ export function encodeWorld(grid, seed, ruleRegistry) {
     .filter(i => i >= 0);
 
   const totalBytes =
-    1 + 4 + 2 + 2 + 1          // header
-    + NUM_LAYERS * size         // layer data
-    + 1 + enabledIndices.length; // rule config
+    1 + 4 + 2 + 2 + 1                       // header
+    + NUM_LAYERS * (size + size * 2)         // types (1B) + lifespan (2B) per layer
+    + 1 + enabledIndices.length;             // rule config
 
   const buf  = new Uint8Array(totalBytes);
   const view = new DataView(buf.buffer);
   let pos = 0;
 
   buf[pos++] = VERSION;
-  view.setUint32(pos, seed, false); pos += 4;
+  view.setUint32(pos, seed, false);   pos += 4;
   view.setUint16(pos, width,  false); pos += 2;
   view.setUint16(pos, height, false); pos += 2;
   buf[pos++] = NUM_LAYERS;
 
   for (let l = 0; l < NUM_LAYERS; l++) {
+    // types
     buf.set(grid.layers[l], pos);
     pos += size;
+    // lifespan (uint16 → 2 bytes each)
+    for (let i = 0; i < size; i++) {
+      view.setUint16(pos, grid.lifespan[l][i], false);
+      pos += 2;
+    }
   }
 
   buf[pos++] = enabledIndices.length;
@@ -50,9 +61,6 @@ export function encodeWorld(grid, seed, ruleRegistry) {
 }
 
 // ── Decode ────────────────────────────────────────────────────────────────────
-//
-// Returns { seed, width, height, layers: Uint8Array[], enabledRuleIndices: number[] }
-// Throws if the string is malformed or the version is unknown.
 
 export function decodeWorld(str) {
   const buf  = fromBase64Url(str);
@@ -60,7 +68,7 @@ export function decodeWorld(str) {
   let pos = 0;
 
   const version = buf[pos++];
-  if (version !== VERSION) throw new Error(`Unknown world version: ${version}`);
+  if (version !== VERSION) throw new Error(`Unknown world version: ${version} (expected ${VERSION})`);
 
   const seed      = view.getUint32(pos, false); pos += 4;
   const width     = view.getUint16(pos, false); pos += 2;
@@ -68,10 +76,20 @@ export function decodeWorld(str) {
   const numLayers = buf[pos++];
   const size      = width * height;
 
-  const layers = [];
+  const layers   = [];
+  const lifespans = [];
+
   for (let l = 0; l < numLayers; l++) {
+    // types
     layers.push(buf.slice(pos, pos + size));
     pos += size;
+    // lifespan
+    const ls = new Uint16Array(size);
+    for (let i = 0; i < size; i++) {
+      ls[i] = view.getUint16(pos, false);
+      pos += 2;
+    }
+    lifespans.push(ls);
   }
 
   const numEnabled = buf[pos++];
@@ -80,7 +98,7 @@ export function decodeWorld(str) {
     enabledRuleIndices.push(buf[pos++]);
   }
 
-  return { seed, width, height, layers, enabledRuleIndices };
+  return { seed, width, height, layers, lifespans, enabledRuleIndices };
 }
 
 // ── Base64url helpers ─────────────────────────────────────────────────────────

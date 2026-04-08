@@ -1,9 +1,14 @@
-import grassSpread from './grass-spread.js';
-import treeSpread  from './tree-spread.js';
+import grassSpread     from './grass-spread.js';
+import treeSpread      from './tree-spread.js';
+import vegetationAging from './vegetation-aging.js';
 
+// Rule application order matters:
+// 1. Spread rules run first (entities reproduce).
+// 2. Aging runs last (entities may die after getting a chance to spread).
 export const ALL_RULES = [
   grassSpread,
   treeSpread,
+  vegetationAging,
 ];
 
 export function createRuleRegistry() {
@@ -24,7 +29,6 @@ export function createRuleRegistry() {
       }
     },
 
-    // Set enabled rules by index array (used when loading a serialized world).
     setEnabledByIndices(indices) {
       enabled.clear();
       for (const i of indices) {

@@ -27,9 +27,13 @@ export class Grid {
     this.height = height;
     this.size   = width * height;
 
-    // Structure of Arrays — one Uint8Array per layer.
-    // Future trait arrays (energy[], age[], etc.) go here as separate typed arrays.
-    this.layers = Array.from({ length: NUM_LAYERS }, () => new Uint8Array(this.size));
+    // Structure of Arrays — one typed array per property per layer.
+    // types[layer]    Uint8Array  — entity type (0 = EMPTY)
+    // age[layer]      Uint16Array — ticks this entity has been alive
+    // lifespan[layer] Uint16Array — max ticks before the entity dies (0 = immortal)
+    this.layers   = Array.from({ length: NUM_LAYERS }, () => new Uint8Array(this.size));
+    this.age      = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
+    this.lifespan = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
   }
 
   // ── Core accessors ───────────────────────────────────────────────────────────
@@ -38,8 +42,33 @@ export class Grid {
     return this.layers[layer][y * this.width + x];
   }
 
+  /**
+   * Low-level write. Does NOT touch age/lifespan.
+   * Use for terrain and direct overrides. Use place() for living entities.
+   */
   set(x, y, state, layer = LAYER_VEGETATION) {
     this.layers[layer][y * this.width + x] = state;
+  }
+
+  /**
+   * Place a living entity: sets its type, resets age to 0, and assigns lifespan.
+   * Pass lifespan = 0 to make the entity immortal (no aging).
+   */
+  place(x, y, state, layer, lifespan = 0) {
+    const i = y * this.width + x;
+    this.layers[layer][i]   = state;
+    this.age[layer][i]      = 0;
+    this.lifespan[layer][i] = lifespan;
+  }
+
+  /**
+   * Remove a living entity: clears type, age, and lifespan.
+   */
+  kill(x, y, layer) {
+    const i = y * this.width + x;
+    this.layers[layer][i]   = EMPTY;
+    this.age[layer][i]      = 0;
+    this.lifespan[layer][i] = 0;
   }
 
   inBounds(x, y) {
@@ -51,12 +80,6 @@ export class Grid {
   /**
    * Returns [x, y] pairs of 4-neighbours where the given layer is EMPTY
    * or matches one of the replaceableStates.
-   *
-   * @param {number} x
-   * @param {number} y
-   * @param {number} layer
-   * @param {number[]} replaceableStates  Entity states that may be overwritten.
-   * @returns {[number, number][]}
    */
   spreadTargets(x, y, layer = LAYER_VEGETATION, replaceableStates = []) {
     const result = [];
@@ -95,9 +118,15 @@ export class Grid {
 
   clearLayer(layer) {
     this.layers[layer].fill(EMPTY);
+    this.age[layer].fill(0);
+    this.lifespan[layer].fill(0);
   }
 
   clearAll() {
-    for (const arr of this.layers) arr.fill(EMPTY);
+    for (let l = 0; l < NUM_LAYERS; l++) {
+      this.layers[l].fill(EMPTY);
+      this.age[l].fill(0);
+      this.lifespan[l].fill(0);
+    }
   }
 }

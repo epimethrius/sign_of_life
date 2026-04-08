@@ -132,10 +132,14 @@
     #soil-pct { color: #888; min-width: 70px; }
 
     /* ── rules ── */
-    #rules-list { display: flex; flex-direction: column; gap: 5px; }
-    #rules-list label { cursor: pointer; font-size: 0.9rem; }
-    #rules-list label:hover { color: #fff; }
+    #rules-list { display: flex; flex-direction: column; gap: 8px; }
+    .rule-entry { display: flex; flex-direction: column; gap: 2px; }
+    .rule-entry > label { cursor: pointer; font-size: 0.9rem; }
+    .rule-entry > label:hover { color: #fff; }
     .rule-desc { font-size: 0.75rem; color: #444; margin-left: 20px; }
+    .rule-params { display: flex; gap: 12px; margin-left: 20px; margin-top: 3px; flex-wrap: wrap; }
+    .param-label { font-size: 0.75rem; color: #666; display: flex; align-items: center; gap: 4px; }
+    .param-input { width: 52px; }
 
     hr { border: none; border-top: 1px solid #1e1e1e; }
   </style>
