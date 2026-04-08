@@ -1,65 +1,121 @@
-import { Grid, GRASS, SOIL, LAYER_TERRAIN, LAYER_VEGETATION } from './grid.js';
+import { Grid, GRASS, TREE, SOIL, WATER, LAYER_TERRAIN, LAYER_VEGETATION } from './grid.js';
 import { Renderer } from './renderer.js';
 import { Loop } from './loop.js';
 import { StatsBuffer } from './stats.js';
 import { createRuleRegistry } from './rules/index.js';
 import { createRng, randomSeed, seedToHex, hexToSeed } from './rng.js';
 import { encodeWorld, decodeWorld } from './serializer.js';
+import { generateTerrain } from './terrain-gen.js';
+import { ALL_TERRAINS } from './terrains/index.js';
 
 const WIDTH  = 10;
 const HEIGHT = 10;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
-const canvas      = document.getElementById('grid-canvas');
-const statusLine  = document.getElementById('status-line');
-const btnNext     = document.getElementById('btn-next');
-const btnReset    = document.getElementById('btn-reset');
-const toggleAuto  = document.getElementById('toggle-auto');
-const inputDelay  = document.getElementById('input-delay');
-const seedDisplay = document.getElementById('seed-display');
-const btnNewSeed  = document.getElementById('btn-new-seed');
-const shareInput  = document.getElementById('share-input');
-const btnCopy     = document.getElementById('btn-copy');
-const btnLoad     = document.getElementById('btn-load');
-const statsEl     = document.getElementById('stats-live');
-const statsSumEl  = document.getElementById('stats-summary');
-const rulesList   = document.getElementById('rules-list');
+const canvas       = document.getElementById('grid-canvas');
+const statusLine   = document.getElementById('status-line');
+const statsLiveEl  = document.getElementById('stats-live');
+const statsSumEl   = document.getElementById('stats-summary');
+const btnNext      = document.getElementById('btn-next');
+const btnReset     = document.getElementById('btn-reset');
+const toggleAuto   = document.getElementById('toggle-auto');
+const inputDelay   = document.getElementById('input-delay');
+const seedDisplay  = document.getElementById('seed-display');
+const btnNewSeed   = document.getElementById('btn-new-seed');
+const shareInput   = document.getElementById('share-input');
+const btnCopy      = document.getElementById('btn-copy');
+const btnLoad      = document.getElementById('btn-load');
+const rulesList    = document.getElementById('rules-list');
+const legendEl     = document.getElementById('legend-content');
+
+// Terrain % inputs — keyed by terrain id.
+const terrainPctInputs = {
+  water: document.getElementById('pct-water'),
+  rock:  document.getElementById('pct-rock'),
+  sand:  document.getElementById('pct-sand'),
+};
+const soilPctDisplay = document.getElementById('soil-pct');
 
 // ── Core objects ──────────────────────────────────────────────────────────────
-const grid  = new Grid(WIDTH, HEIGHT);
+const grid     = new Grid(WIDTH, HEIGHT);
 const renderer = new Renderer(canvas, grid);
-const rules = createRuleRegistry();
-// Series 0 = grass count on LAYER_VEGETATION
-const stats = new StatsBuffer(1, 1000);
+const rules    = createRuleRegistry();
+// Series: 0 = grass, 1 = tree
+const stats    = new StatsBuffer(2, 1000);
 
-let simRng;       // seeded RNG used by rules — separate from init RNG
+// Register entity icons with renderer.
+renderer.setEntityIcons(new Map(
+  rules.rules
+    .filter(r => r.entity)
+    .map(r => [r.entity.typeId, r.entity.icon])
+));
+
+let simRng;
 let currentSeed;
-let generation = 0;
-let finished   = false;
+let generation    = 0;
+let finished      = false;
+let prevVegCount  = 0; // for delta display
+
+// ── Terrain percentage helpers ────────────────────────────────────────────────
+function getTerrainPct() {
+  const water = clamp(parseFloat(terrainPctInputs.water.value) || 0, 0, 100) / 100;
+  const rock  = clamp(parseFloat(terrainPctInputs.rock.value)  || 0, 0, 100) / 100;
+  const sand  = clamp(parseFloat(terrainPctInputs.sand.value)  || 0, 0, 100) / 100;
+  return { water, rock, sand };
+}
+
+function updateSoilDisplay() {
+  const { water, rock, sand } = getTerrainPct();
+  const soilPct = Math.max(0, 100 - Math.round((water + rock + sand) * 100));
+  soilPctDisplay.textContent = `Soil: ${soilPct}%`;
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+for (const input of Object.values(terrainPctInputs)) {
+  input.addEventListener('input', updateSoilDisplay);
+}
+updateSoilDisplay();
+
+// ── Simulation end condition ──────────────────────────────────────────────────
+// All non-water cells in the vegetation layer are occupied.
+function isVegetationComplete() {
+  const terrain = grid.layers[LAYER_TERRAIN];
+  const veg     = grid.layers[LAYER_VEGETATION];
+  for (let i = 0; i < grid.size; i++) {
+    if (terrain[i] === WATER) continue; // water blocks all land vegetation
+    if (veg[i] === 0) return false;
+  }
+  return true;
+}
 
 // ── Init / reset ──────────────────────────────────────────────────────────────
 function init(seed) {
   currentSeed = (seed !== undefined) ? seed : randomSeed();
 
-  // Init RNG: used only for placing the starting grass cell.
-  // Kept separate so the simulation RNG always starts from a clean state.
   const initRng = createRng(currentSeed);
-  simRng = createRng(currentSeed ^ 0x9E3779B9); // deterministic sub-seed
+  simRng        = createRng(currentSeed ^ 0x9E3779B9);
 
   grid.clearAll();
-  grid.layers[LAYER_TERRAIN].fill(SOIL); // terrain is all soil for now
 
-  const startX = Math.floor(initRng() * WIDTH);
-  const startY = Math.floor(initRng() * HEIGHT);
-  grid.set(startX, startY, GRASS, LAYER_VEGETATION);
+  // Generate terrain using the init RNG.
+  generateTerrain(grid, getTerrainPct(), initRng);
 
-  generation = 0;
-  finished   = false;
+  // Seed one grass cell on a non-water cell.
+  _seedEntity(grid, GRASS, LAYER_VEGETATION, initRng);
+  // Seed one tree cell on a different non-water cell.
+  _seedEntity(grid, TREE, LAYER_VEGETATION, initRng);
+
+  generation   = 0;
+  finished     = false;
+  prevVegCount = grid.countState(GRASS, LAYER_VEGETATION)
+               + grid.countState(TREE,  LAYER_VEGETATION);
   stats.reset();
 
   seedDisplay.value  = seedToHex(currentSeed);
   shareInput.value   = encodeWorld(grid, currentSeed, rules);
-  statsSumEl.textContent = '';
+  statsSumEl.textContent  = '';
+  statsLiveEl.textContent = '';
 
   loop.stop();
   toggleAuto.checked = false;
@@ -67,6 +123,18 @@ function init(seed) {
 
   updateStatus();
   renderer.draw();
+}
+
+/** Place one cell of `entityType` on the given layer, avoiding water and existing occupied cells. */
+function _seedEntity(grid, entityType, layer, rng) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const x = Math.floor(rng() * WIDTH);
+    const y = Math.floor(rng() * HEIGHT);
+    if (grid.get(x, y, LAYER_TERRAIN) === WATER) continue;
+    if (grid.get(x, y, layer) !== 0) continue;
+    grid.set(x, y, entityType, layer);
+    return;
+  }
 }
 
 // ── Tick ──────────────────────────────────────────────────────────────────────
@@ -77,34 +145,43 @@ function tick() {
   generation++;
 
   const grassCount = grid.countState(GRASS, LAYER_VEGETATION);
-  stats.push([grassCount]);
-  updateStatus(grassCount);
+  const treeCount  = grid.countState(TREE,  LAYER_VEGETATION);
+  const vegCount   = grassCount + treeCount;
+  const delta      = vegCount - prevVegCount;
 
-  if (grid.isLayerFull(LAYER_VEGETATION)) {
+  stats.push([grassCount, treeCount]);
+  prevVegCount = vegCount;
+
+  if (isVegetationComplete()) {
     finished = true;
     loop.stop();
     toggleAuto.checked = false;
     btnNext.disabled   = true;
-    renderSummary();
+    renderDone(grassCount, treeCount);
+  } else {
+    updateStatus(grassCount, treeCount, delta);
   }
 
   renderer.draw();
 }
 
-function updateStatus(grassCount) {
-  const count = grassCount ?? grid.countState(GRASS, LAYER_VEGETATION);
+function updateStatus(grassCount, treeCount, delta) {
+  const g = grassCount ?? grid.countState(GRASS, LAYER_VEGETATION);
+  const t = treeCount  ?? grid.countState(TREE,  LAYER_VEGETATION);
+  const d = delta ?? 0;
   const total = WIDTH * HEIGHT;
-  statusLine.textContent = `Generation: ${generation}  |  Grass: ${count} / ${total}`;
-  statsEl.textContent    = `+${count - (stats.latest(0) || count)} this tick`;
+  statusLine.textContent  = `Generation: ${generation}  |  Grass: ${g}  |  Tree: ${t}  |  Total veg: ${g + t} / ${total}`;
+  statsLiveEl.textContent = d >= 0 ? `+${d} this tick` : `${d} this tick`;
 }
 
-function renderSummary() {
-  const s     = stats.summary(0);
-  const total = WIDTH * HEIGHT;
-  statusLine.textContent = `Field full after ${generation} ticks — ${total} / ${total} grass cells.`;
+function renderDone(grassCount, treeCount) {
+  const gs = stats.summary(0);
+  const ts = stats.summary(1);
+  statusLine.textContent = `Vegetation complete after ${generation} ticks.`;
   statsSumEl.innerHTML   =
-    `Peak: ${s.max} &nbsp;|&nbsp; Avg growth: ${s.avgGrowth} cells/tick`;
-  statsEl.textContent    = '';
+    `Grass — peak: ${gs.max}, avg growth: ${gs.avgGrowth}/tick &nbsp;|&nbsp; ` +
+    `Tree — peak: ${ts.max}, avg growth: ${ts.avgGrowth}/tick`;
+  statsLiveEl.textContent = '';
 }
 
 // ── Loop ──────────────────────────────────────────────────────────────────────
@@ -132,7 +209,7 @@ btnNewSeed.addEventListener('click', () => init());
 seedDisplay.addEventListener('change', () => {
   const seed = hexToSeed(seedDisplay.value);
   if (seed !== null) init(seed);
-  else seedDisplay.value = seedToHex(currentSeed); // revert invalid input
+  else seedDisplay.value = seedToHex(currentSeed);
 });
 
 // ── Share controls ────────────────────────────────────────────────────────────
@@ -146,11 +223,9 @@ btnCopy.addEventListener('click', () => {
 btnLoad.addEventListener('click', () => {
   try {
     const decoded = decodeWorld(shareInput.value.trim());
-    // Restore grid layers
     for (let l = 0; l < decoded.layers.length && l < grid.layers.length; l++) {
       grid.layers[l].set(decoded.layers[l]);
     }
-    // Restore rule config
     rules.setEnabledByIndices(decoded.enabledRuleIndices);
     rebuildRuleCheckboxes();
 
@@ -159,8 +234,11 @@ btnLoad.addEventListener('click', () => {
     simRng             = createRng(currentSeed ^ 0x9E3779B9);
     generation         = 0;
     finished           = false;
+    prevVegCount       = grid.countState(GRASS, LAYER_VEGETATION)
+                       + grid.countState(TREE,  LAYER_VEGETATION);
     stats.reset();
-    statsSumEl.textContent = '';
+    statsSumEl.textContent  = '';
+    statsLiveEl.textContent = '';
 
     loop.stop();
     toggleAuto.checked = false;
@@ -194,5 +272,52 @@ function rebuildRuleCheckboxes() {
   }
 }
 
+// ── Legend ────────────────────────────────────────────────────────────────────
+function buildLegend() {
+  legendEl.innerHTML = '';
+
+  // Terrain section
+  const terrainHeader = document.createElement('div');
+  terrainHeader.className   = 'legend-group-label';
+  terrainHeader.textContent = 'Terrain';
+  legendEl.appendChild(terrainHeader);
+
+  for (const t of ALL_TERRAINS) {
+    const row   = document.createElement('div');
+    row.className = 'legend-row';
+    const swatch = document.createElement('span');
+    swatch.className = 'legend-swatch';
+    swatch.style.background = t.color;
+    const name = document.createElement('span');
+    name.textContent = t.name;
+    row.appendChild(swatch);
+    row.appendChild(name);
+    legendEl.appendChild(row);
+  }
+
+  // Vegetation entities
+  const vegHeader = document.createElement('div');
+  vegHeader.className   = 'legend-group-label';
+  vegHeader.textContent = 'Vegetation';
+  legendEl.appendChild(vegHeader);
+
+  for (const rule of rules.rules) {
+    if (!rule.entity) continue;
+    const { icon, name, description } = rule.entity;
+    const row  = document.createElement('div');
+    row.className = 'legend-row';
+    const iconEl = document.createElement('span');
+    iconEl.className   = 'legend-icon';
+    iconEl.textContent = icon;
+    const nameEl = document.createElement('span');
+    nameEl.textContent = `${name} — ${description}`;
+    row.appendChild(iconEl);
+    row.appendChild(nameEl);
+    legendEl.appendChild(row);
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
 rebuildRuleCheckboxes();
+buildLegend();
 init();

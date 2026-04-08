@@ -1,7 +1,9 @@
 import grassSpread from './grass-spread.js';
+import treeSpread  from './tree-spread.js';
 
 export const ALL_RULES = [
   grassSpread,
+  treeSpread,
 ];
 
 export function createRuleRegistry() {
@@ -22,7 +24,7 @@ export function createRuleRegistry() {
       }
     },
 
-    // Set enabled rules by index (used when loading a serialized world).
+    // Set enabled rules by index array (used when loading a serialized world).
     setEnabledByIndices(indices) {
       enabled.clear();
       for (const i of indices) {

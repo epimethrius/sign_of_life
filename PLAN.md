@@ -214,21 +214,20 @@ Stops when field is full. Manual/auto tick, delay input, status line.
 Seeded PRNG, multi-layer SoA grid, stats circular buffer, world serialization,
 seed + share UI, rule registry with enable/disable.
 
-### M3 — Terrain, Trees & Richer Rules
+### M3 — Terrain, Trees & Richer Rules ✓
 
-- [ ] `src/terrains/` — terrain registry + soil, sand, water, rock modules (with effects JSDoc)
-- [ ] `grid.terrainEffect(x, y, key)` — query terrain modifier at a cell
-- [ ] `grid.spreadTargets(x, y, layer, replaceableStates[])` — replaces `emptyNeighbors`
-- [ ] Terrain generation: seed+expand BFS, seeded RNG, configurable percentages
-- [ ] Terrain percentage UI (inputs per type, auto-remainder to soil)
-- [ ] `src/rules/grass-spread.js` — migrate to action dispatch (SPREAD / IDLE weights),
-      respect terrain `grassSpreadChance` effect
-- [ ] `src/rules/tree-spread.js` — tree spreads slowly, replaces grass, respects terrain
-- [ ] Fix stats delta display bug (always showed +0 in M2)
-- [ ] Multi-series stats: track grass and tree counts separately
-- [ ] Renderer: terrain color fill + entity icon overlay (two-pass draw)
-- [ ] Legend sidebar: terrain swatches + entity icons with descriptions
-- [ ] Reset re-generates terrain from current percentage settings + new seed
+- [x] `src/terrains/` — terrain registry + soil, sand, water, rock modules (with effects JSDoc)
+- [x] `src/actions.js` — `pickAction(actions, rng)` weighted dispatch utility
+- [x] `grid.spreadTargets(x, y, layer, replaceableStates[])` — replaces `emptyNeighbors`
+- [x] Terrain generation: seed+expand BFS, seeded RNG, configurable percentages
+- [x] Terrain percentage UI (inputs per type, auto-remainder to soil)
+- [x] `src/rules/grass-spread.js` — action dispatch (SPREAD / IDLE), terrain `grassSpreadChance`
+- [x] `src/rules/tree-spread.js` — slow spread, replaces grass, terrain `treeSpreadChance`
+- [x] Fixed stats delta display bug from M2
+- [x] Multi-series stats: grass (series 0) and tree (series 1) tracked separately
+- [x] Renderer: terrain color fill + entity icon overlay (two-pass draw)
+- [x] Legend sidebar: terrain swatches + entity icons with descriptions
+- [x] End condition: all non-water cells covered (not just full layer)
 
 ### M4 — Animals
 

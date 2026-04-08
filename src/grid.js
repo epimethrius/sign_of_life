@@ -8,17 +8,18 @@ export const NUM_LAYERS       = 4;
 // ── Universal ──────────────────────────────────────────────────────────────────
 export const EMPTY = 0;
 
-// ── Terrain states ─────────────────────────────────────────────────────────────
+// ── Terrain states (typeId matches terrain module's typeId field) ───────────────
 export const SOIL  = 1;
-export const WATER = 2;
-export const ROCK  = 3;
+export const SAND  = 2;
+export const WATER = 3;
+export const ROCK  = 4;
 
 // ── Vegetation states ──────────────────────────────────────────────────────────
 export const GRASS = 1;
 export const TREE  = 2;
 
 // ── 4-directional neighbour offsets ───────────────────────────────────────────
-const NEIGHBORS_4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+const DIRS_4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 export class Grid {
   constructor(width = 10, height = 10) {
@@ -27,8 +28,7 @@ export class Grid {
     this.size   = width * height;
 
     // Structure of Arrays — one Uint8Array per layer.
-    // Future trait arrays (e.g. energy, age) go here as separate typed arrays,
-    // not as fields inside a per-cell object.
+    // Future trait arrays (energy[], age[], etc.) go here as separate typed arrays.
     this.layers = Array.from({ length: NUM_LAYERS }, () => new Uint8Array(this.size));
   }
 
@@ -46,15 +46,26 @@ export class Grid {
     return x >= 0 && x < this.width && y >= 0 && y < this.height;
   }
 
-  // ── Neighbour queries ────────────────────────────────────────────────────────
+  // ── Spread target queries ────────────────────────────────────────────────────
 
-  // Returns [x, y] pairs of 4-neighbours where the given layer is EMPTY.
-  emptyNeighbors(x, y, layer = LAYER_VEGETATION) {
+  /**
+   * Returns [x, y] pairs of 4-neighbours where the given layer is EMPTY
+   * or matches one of the replaceableStates.
+   *
+   * @param {number} x
+   * @param {number} y
+   * @param {number} layer
+   * @param {number[]} replaceableStates  Entity states that may be overwritten.
+   * @returns {[number, number][]}
+   */
+  spreadTargets(x, y, layer = LAYER_VEGETATION, replaceableStates = []) {
     const result = [];
-    for (const [dx, dy] of NEIGHBORS_4) {
+    for (const [dx, dy] of DIRS_4) {
       const nx = x + dx;
       const ny = y + dy;
-      if (this.inBounds(nx, ny) && this.layers[layer][ny * this.width + nx] === EMPTY) {
+      if (!this.inBounds(nx, ny)) continue;
+      const state = this.layers[layer][ny * this.width + nx];
+      if (state === EMPTY || replaceableStates.includes(state)) {
         result.push([nx, ny]);
       }
     }
