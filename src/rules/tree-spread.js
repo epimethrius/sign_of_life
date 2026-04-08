@@ -42,8 +42,10 @@ export default {
       const terrainChance = effectOf(grid.get(x, y, LAYER_TERRAIN), 'treeSpreadChance');
       if (rng() > terrainChance) continue;
 
-      // Trees can spread to empty cells OR replace grass.
-      const targets = grid.spreadTargets(x, y, LAYER_VEGETATION, [GRASS]);
+      // Trees can spread to empty cells OR replace grass,
+      // but only where the target terrain permits it (treeSpreadChance > 0).
+      const targets = grid.spreadTargets(x, y, LAYER_VEGETATION, [GRASS])
+        .filter(([nx, ny]) => effectOf(grid.get(nx, ny, LAYER_TERRAIN), 'treeSpreadChance') > 0);
       if (targets.length === 0) continue;
 
       const [nx, ny] = targets[Math.floor(rng() * targets.length)];
