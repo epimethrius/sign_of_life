@@ -1,8 +1,26 @@
-import { HERBIVORE, GRASS, TREE, LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
+import { HERBIVORE, PREDATOR, GRASS, TREE, LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
 import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
 
 const FOOD_TYPES = [GRASS, TREE];
+const DANGER_RADIUS = 2; // Chebyshev distance at which a predator triggers survival mode
+
+/** Returns [x, y] of the nearest predator within DANGER_RADIUS, or null. */
+function nearestThreat(grid, x, y) {
+  let bestDist = Infinity;
+  let bestPos  = null;
+  for (let dy = -DANGER_RADIUS; dy <= DANGER_RADIUS; dy++) {
+    for (let dx = -DANGER_RADIUS; dx <= DANGER_RADIUS; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx, ny = y + dy;
+      if (!grid.inBounds(nx, ny)) continue;
+      if (grid.get(nx, ny, LAYER_ANIMALS) !== PREDATOR) continue;
+      const d = Math.max(Math.abs(dx), Math.abs(dy));
+      if (d < bestDist) { bestDist = d; bestPos = [nx, ny]; }
+    }
+  }
+  return bestPos;
+}
 
 export default {
   id: 'herbivore-behavior',
@@ -16,7 +34,7 @@ export default {
     icon:                 '🐇',
     description:          'Eats grass and trees. Moves, reproduces, dies of age or starvation.',
     baseLifespan:         15,
-    lifespanVariance:     0.2,
+    lifespanVariance:     0.25,
     baseEnergy:           10,
     energyDecayPerTick:   0.8,
     energyFromGrass:      6,
@@ -61,7 +79,48 @@ export default {
         continue;
       }
 
-      const energy = grid.energy[al][i];
+      const energy  = grid.energy[al][i];
+      const threat  = nearestThreat(grid, x, y);
+      const targets = emptyAnimalNeighbors(grid, x, y, al);
+
+      // ── 0. Survival mode: predator within danger radius ──────────────────────
+      if (threat) {
+        const [tx, ty] = threat;
+
+        // 0a. Try to escape — move to the neighbor that maximises distance from threat.
+        if (targets.length > 0) {
+          let bestDist = -Infinity;
+          for (const [nx, ny] of targets) {
+            const d = Math.abs(nx - tx) + Math.abs(ny - ty);
+            if (d > bestDist) bestDist = d;
+          }
+          const escapeCandidates = targets.filter(([nx, ny]) =>
+            Math.abs(nx - tx) + Math.abs(ny - ty) === bestDist);
+          // Only escape if it actually increases distance from threat.
+          const currentDist = Math.abs(x - tx) + Math.abs(y - ty);
+          if (bestDist > currentDist) {
+            const [nx, ny] = escapeCandidates[Math.floor(rng() * escapeCandidates.length)];
+            grid.move(x, y, nx, ny, al);
+            movedThisTick.add(ny * grid.width + nx);
+            continue;
+          }
+        }
+
+        // 0b. Cornered — try to reproduce to preserve population.
+        if (energy >= e.reproThreshold && grid.reproCooldown[al][i] === 0 && targets.length > 0) {
+          const [nx, ny] = targets[Math.floor(rng() * targets.length)];
+          grid.energy[al][i] -= e.reproCost;
+          const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
+          const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
+          grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
+          grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
+          grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
+          events.log('birth', HERBIVORE, al);
+          continue;
+        }
+
+        // 0c. Can't escape or reproduce — fall through to normal food priority below.
+      }
 
       // ── 1. Hungry: seek food deterministically ───────────────────────────────
       if (energy < hungerThreshold) {
@@ -74,7 +133,6 @@ export default {
         } else {
           // Move toward the nearest food cell.
           const nearest = nearestFoodCell(grid, x, y, LAYER_VEGETATION, FOOD_TYPES);
-          const targets = emptyAnimalNeighbors(grid, x, y, al);
           if (nearest && targets.length > 0) {
             const [fx, fy] = nearest;
             let bestDist = Infinity;
@@ -87,7 +145,7 @@ export default {
             grid.move(x, y, nx, ny, al);
             movedThisTick.add(ny * grid.width + nx);
           } else if (targets.length > 0) {
-            // No food exists anywhere — wander randomly.
+            // No food anywhere — wander randomly.
             const [nx, ny] = targets[Math.floor(rng() * targets.length)];
             grid.move(x, y, nx, ny, al);
             movedThisTick.add(ny * grid.width + nx);
@@ -96,29 +154,23 @@ export default {
 
       // ── 2. Well-fed and ready to reproduce ───────────────────────────────────
       } else if (energy >= e.reproThreshold && grid.reproCooldown[al][i] === 0) {
-        const targets = emptyAnimalNeighbors(grid, x, y, al);
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           grid.energy[al][i] -= e.reproCost;
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
-          // Parent cooldown.
           grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
-          // Newborn starts on cooldown so it can't reproduce immediately.
           grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
           events.log('birth', HERBIVORE, al);
         }
 
       // ── 3. Well-fed but on cooldown: wander or idle ──────────────────────────
       } else {
-        if (rng() < 0.6) {
-          const targets = emptyAnimalNeighbors(grid, x, y, al);
-          if (targets.length > 0) {
-            const [nx, ny] = targets[Math.floor(rng() * targets.length)];
-            grid.move(x, y, nx, ny, al);
-            movedThisTick.add(ny * grid.width + nx);
-          }
+        if (rng() < 0.6 && targets.length > 0) {
+          const [nx, ny] = targets[Math.floor(rng() * targets.length)];
+          grid.move(x, y, nx, ny, al);
+          movedThisTick.add(ny * grid.width + nx);
         }
         // else IDLE
       }
