@@ -18,6 +18,10 @@ export const ROCK  = 4;
 export const GRASS = 1;
 export const TREE  = 2;
 
+// ── Animal states ──────────────────────────────────────────────────────────────
+export const HERBIVORE = 1;
+export const PREDATOR  = 2;
+
 // ── 4-directional neighbour offsets ───────────────────────────────────────────
 const DIRS_4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
@@ -28,12 +32,14 @@ export class Grid {
     this.size   = width * height;
 
     // Structure of Arrays — one typed array per property per layer.
-    // types[layer]    Uint8Array  — entity type (0 = EMPTY)
-    // age[layer]      Uint16Array — ticks this entity has been alive
-    // lifespan[layer] Uint16Array — max ticks before the entity dies (0 = immortal)
+    //   layers[l]   Uint8Array   — entity type (0 = EMPTY)
+    //   age[l]      Uint16Array  — ticks this entity has been alive
+    //   lifespan[l] Uint16Array  — max ticks before entity dies (0 = immortal)
+    //   energy[l]   Float32Array — energy level (meaningful for LAYER_ANIMALS)
     this.layers   = Array.from({ length: NUM_LAYERS }, () => new Uint8Array(this.size));
     this.age      = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
     this.lifespan = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
+    this.energy   = Array.from({ length: NUM_LAYERS }, () => new Float32Array(this.size));
   }
 
   // ── Core accessors ───────────────────────────────────────────────────────────
@@ -43,32 +49,51 @@ export class Grid {
   }
 
   /**
-   * Low-level write. Does NOT touch age/lifespan.
-   * Use for terrain and direct overrides. Use place() for living entities.
+   * Low-level type write. Does NOT touch age/lifespan/energy.
+   * Use for terrain. Use place() for living entities.
    */
   set(x, y, state, layer = LAYER_VEGETATION) {
     this.layers[layer][y * this.width + x] = state;
   }
 
   /**
-   * Place a living entity: sets its type, resets age to 0, and assigns lifespan.
-   * Pass lifespan = 0 to make the entity immortal (no aging).
+   * Place a living entity: set type, reset age to 0, assign lifespan and energy.
    */
-  place(x, y, state, layer, lifespan = 0) {
+  place(x, y, state, layer, lifespan = 0, energy = 0) {
     const i = y * this.width + x;
     this.layers[layer][i]   = state;
     this.age[layer][i]      = 0;
     this.lifespan[layer][i] = lifespan;
+    this.energy[layer][i]   = energy;
   }
 
   /**
-   * Remove a living entity: clears type, age, and lifespan.
+   * Remove a living entity: clear type, age, lifespan, and energy.
    */
   kill(x, y, layer) {
     const i = y * this.width + x;
     this.layers[layer][i]   = EMPTY;
     this.age[layer][i]      = 0;
     this.lifespan[layer][i] = 0;
+    this.energy[layer][i]   = 0;
+  }
+
+  /**
+   * Move an entity from (fromX, fromY) to (toX, toY) on the same layer,
+   * transferring all state (type, age, lifespan, energy).
+   * The source cell is cleared.
+   */
+  move(fromX, fromY, toX, toY, layer) {
+    const fi = fromY * this.width + fromX;
+    const ti = toY  * this.width + toX;
+    this.layers[layer][ti]   = this.layers[layer][fi];
+    this.age[layer][ti]      = this.age[layer][fi];
+    this.lifespan[layer][ti] = this.lifespan[layer][fi];
+    this.energy[layer][ti]   = this.energy[layer][fi];
+    this.layers[layer][fi]   = EMPTY;
+    this.age[layer][fi]      = 0;
+    this.lifespan[layer][fi] = 0;
+    this.energy[layer][fi]   = 0;
   }
 
   inBounds(x, y) {
@@ -120,6 +145,7 @@ export class Grid {
     this.layers[layer].fill(EMPTY);
     this.age[layer].fill(0);
     this.lifespan[layer].fill(0);
+    this.energy[layer].fill(0);
   }
 
   clearAll() {
@@ -127,6 +153,7 @@ export class Grid {
       this.layers[l].fill(EMPTY);
       this.age[l].fill(0);
       this.lifespan[l].fill(0);
+      this.energy[l].fill(0);
     }
   }
 }

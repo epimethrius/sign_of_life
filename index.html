@@ -70,8 +70,26 @@
 
     /* ── status ── */
     #status-line   { font-size: 0.85rem; color: #888; min-height: 1.2em; }
-    #stats-live    { font-size: 0.8rem;  color: #666; min-height: 1em; }
     #stats-summary { font-size: 0.8rem;  color: #5a8f6a; min-height: 1em; }
+
+    /* ── stats table ── */
+    #stats-wrapper {
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      color: #888;
+    }
+    #stats-wrapper th {
+      text-align: left;
+      color: #555;
+      font-weight: normal;
+      padding: 0 16px 4px 0;
+      border-bottom: 1px solid #222;
+    }
+    #stats-wrapper td {
+      padding: 2px 16px 2px 0;
+      color: #999;
+    }
+    #stats-wrapper td:first-child { color: #bbb; }
 
     /* ── control rows ── */
     .row {
@@ -157,7 +175,20 @@
 
   <!-- Status -->
   <div id="status-line">—</div>
-  <div id="stats-live"></div>
+
+  <table id="stats-wrapper">
+    <thead>
+      <tr>
+        <th>Entity</th>
+        <th>Population</th>
+        <th>Births</th>
+        <th>Deaths</th>
+        <th>Death ratio</th>
+      </tr>
+    </thead>
+    <tbody id="stats-table"></tbody>
+  </table>
+
   <div id="stats-summary"></div>
 
   <hr />

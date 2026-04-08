@@ -229,14 +229,18 @@ seed + share UI, rule registry with enable/disable.
 - [x] Legend sidebar: terrain swatches + entity icons with descriptions
 - [x] End condition: all non-water cells covered (not just full layer)
 
-### M4 — Animals
+### M4 — Animals ✓
 
-- [ ] Animal layer: herbivore (eats grass/tree, moves, reproduces, ages, starves)
-- [ ] SoA trait arrays: `energy[]`, `age[]` per animal cell
-- [ ] Action dispatch: MOVE, EAT, REPRODUCE, IDLE, DIE — weighted per species
-- [ ] Predator (eats herbivores)
-- [ ] Interaction event logging: predation, starvation, reproduction counts per tick
-- [ ] Stats expanded to animal species; live population display per species
+- [x] `src/events.js` — EventLog; rules call `events.log(type, entityTypeId, layer)` each tick
+- [x] `energy[]` SoA (Float32Array per layer) added to Grid; `move()` transfers all state
+- [x] `HERBIVORE`, `PREDATOR` constants in grid.js
+- [x] `herbivore-behavior.js` — EAT/MOVE/REPRODUCE/IDLE actions; starves or ages to death
+- [x] `predator-behavior.js` — hunts herbivores via move-to-eat; same lifecycle
+- [x] All rules updated to `apply(grid, rng, events)`; spread + aging rules log births/deaths
+- [x] Renderer pass 3: animal icons centered; vegetation shrunk to corner when both present
+- [x] Serializer v3: adds `energy[]` arrays (Float32, 4 bytes/cell per layer)
+- [x] Stats table: population + lifetime births + deaths + death ratio per entity
+- [x] Auto-stop changed to: no population change for 5 consecutive ticks
 
 ### M5 — Interactivity & Sharing
 

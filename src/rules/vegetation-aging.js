@@ -2,14 +2,12 @@ import { EMPTY, LAYER_VEGETATION } from '../grid.js';
 
 export default {
   id: 'vegetation-aging',
-  entity: null, // not an entity rule — no icon or legend entry
+  entity: null,
   name: 'Vegetation Aging',
   description: 'Vegetation dies when its lifespan expires, freeing the cell.',
-
-  // No action dispatch — runs unconditionally on every occupied cell.
   actions: [],
 
-  apply(grid /*, rng — not needed */) {
+  apply(grid, rng, events) {
     const types    = grid.layers[LAYER_VEGETATION];
     const age      = grid.age[LAYER_VEGETATION];
     const lifespan = grid.lifespan[LAYER_VEGETATION];
@@ -19,8 +17,8 @@ export default {
 
       age[i]++;
 
-      // lifespan === 0 means immortal (e.g. manually painted or unaged entity).
       if (lifespan[i] > 0 && age[i] >= lifespan[i]) {
+        events.log('death-age', types[i], LAYER_VEGETATION);
         types[i]    = EMPTY;
         age[i]      = 0;
         lifespan[i] = 0;

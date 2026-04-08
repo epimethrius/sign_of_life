@@ -24,7 +24,7 @@ export default {
     { action: 'IDLE',   weight: 0.75 },
   ],
 
-  apply(grid, rng) {
+  apply(grid, rng, events) {
     const { baseLifespan, lifespanVariance } = this.entity;
 
     // Snapshot before writing so newly placed trees don't spread in the same tick.
@@ -50,6 +50,7 @@ export default {
 
       const [nx, ny] = targets[Math.floor(rng() * targets.length)];
       grid.place(nx, ny, TREE, LAYER_VEGETATION, computeLifespan(baseLifespan, lifespanVariance, rng));
+      events.log('birth', TREE, LAYER_VEGETATION);
     }
   },
 };

@@ -24,7 +24,7 @@ export default {
     { action: 'IDLE',   weight: 0.15 },
   ],
 
-  apply(grid, rng) {
+  apply(grid, rng, events) {
     const { baseLifespan, lifespanVariance } = this.entity;
 
     // Snapshot positions before writing so newly placed grass
@@ -50,6 +50,7 @@ export default {
 
       const [nx, ny] = targets[Math.floor(rng() * targets.length)];
       grid.place(nx, ny, GRASS, LAYER_VEGETATION, computeLifespan(baseLifespan, lifespanVariance, rng));
+      events.log('birth', GRASS, LAYER_VEGETATION);
     }
   },
 };

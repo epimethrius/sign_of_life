@@ -1,13 +1,19 @@
-import { Grid, GRASS, TREE, SOIL, WATER, LAYER_TERRAIN, LAYER_VEGETATION } from './grid.js';
-import { Renderer } from './renderer.js';
-import { Loop } from './loop.js';
-import { StatsBuffer } from './stats.js';
+import {
+  Grid,
+  GRASS, TREE, HERBIVORE, PREDATOR,
+  SOIL, WATER,
+  LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS,
+} from './grid.js';
+import { Renderer }          from './renderer.js';
+import { Loop }              from './loop.js';
+import { StatsBuffer }       from './stats.js';
+import { EventLog }          from './events.js';
 import { createRuleRegistry } from './rules/index.js';
 import { createRng, randomSeed, seedToHex, hexToSeed } from './rng.js';
-import { computeLifespan } from './actions.js';
+import { computeLifespan }   from './actions.js';
 import { encodeWorld, decodeWorld } from './serializer.js';
-import { generateTerrain } from './terrain-gen.js';
-import { ALL_TERRAINS } from './terrains/index.js';
+import { generateTerrain }   from './terrain-gen.js';
+import { ALL_TERRAINS }      from './terrains/index.js';
 
 const WIDTH  = 10;
 const HEIGHT = 10;
@@ -15,7 +21,7 @@ const HEIGHT = 10;
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const canvas       = document.getElementById('grid-canvas');
 const statusLine   = document.getElementById('status-line');
-const statsLiveEl  = document.getElementById('stats-live');
+const statsTableEl = document.getElementById('stats-table');
 const statsSumEl   = document.getElementById('stats-summary');
 const btnNext      = document.getElementById('btn-next');
 const btnReset     = document.getElementById('btn-reset');
@@ -28,8 +34,6 @@ const btnCopy      = document.getElementById('btn-copy');
 const btnLoad      = document.getElementById('btn-load');
 const rulesList    = document.getElementById('rules-list');
 const legendEl     = document.getElementById('legend-content');
-
-// Terrain % inputs — keyed by terrain id.
 const terrainPctInputs = {
   water: document.getElementById('pct-water'),
   rock:  document.getElementById('pct-rock'),
@@ -38,85 +42,91 @@ const terrainPctInputs = {
 const soilPctDisplay = document.getElementById('soil-pct');
 
 // ── Core objects ──────────────────────────────────────────────────────────────
-const grid     = new Grid(WIDTH, HEIGHT);
+const grid   = new Grid(WIDTH, HEIGHT);
 const renderer = new Renderer(canvas, grid);
-const rules    = createRuleRegistry();
-// Series: 0 = grass, 1 = tree
-const stats    = new StatsBuffer(2, 1000);
+const rules  = createRuleRegistry();
+const events = new EventLog();
 
-// Register entity icons with renderer.
-renderer.setEntityIcons(new Map(
-  rules.rules
-    .filter(r => r.entity)
-    .map(r => [r.entity.typeId, r.entity.icon])
-));
+// Stats buffer: series 0=GRASS, 1=TREE, 2=HERBIVORE, 3=PREDATOR
+const stats = new StatsBuffer(4, 1000);
+
+// Running lifetime event totals: { births, deaths } per entity key.
+const ENTITY_KEYS = [
+  { typeId: GRASS,      layer: LAYER_VEGETATION, label: 'Grass',     icon: '🌿' },
+  { typeId: TREE,       layer: LAYER_VEGETATION, label: 'Tree',      icon: '🌲' },
+  { typeId: HERBIVORE,  layer: LAYER_ANIMALS,    label: 'Herbivore', icon: '🐇' },
+  { typeId: PREDATOR,   layer: LAYER_ANIMALS,    label: 'Predator',  icon: '🦊' },
+];
+let lifetimeBirths = {};
+let lifetimeDeaths = {};
+
+function resetLifetimeCounts() {
+  for (const k of ENTITY_KEYS) {
+    lifetimeBirths[_ekey(k)] = 0;
+    lifetimeDeaths[_ekey(k)] = 0;
+  }
+}
+function _ekey(k) { return `${k.typeId}:${k.layer}`; }
+
+// Register icons with renderer.
+renderer.setEntityIcons(LAYER_VEGETATION, new Map([
+  [GRASS, '🌿'], [TREE, '🌲'],
+]));
+renderer.setEntityIcons(LAYER_ANIMALS, new Map([
+  [HERBIVORE, '🐇'], [PREDATOR, '🦊'],
+]));
 
 let simRng;
 let currentSeed;
 let generation    = 0;
 let finished      = false;
-let prevVegCount  = 0; // for delta display
+let stableTicks   = 0;        // consecutive ticks with no change
+let prevTotalVeg  = 0;
+let prevTotalAnimal = 0;
 
-// ── Terrain percentage helpers ────────────────────────────────────────────────
+// ── Terrain % helpers ─────────────────────────────────────────────────────────
 function getTerrainPct() {
-  const water = clamp(parseFloat(terrainPctInputs.water.value) || 0, 0, 100) / 100;
-  const rock  = clamp(parseFloat(terrainPctInputs.rock.value)  || 0, 0, 100) / 100;
-  const sand  = clamp(parseFloat(terrainPctInputs.sand.value)  || 0, 0, 100) / 100;
-  return { water, rock, sand };
+  return {
+    water: clamp(parseFloat(terrainPctInputs.water.value) || 0, 0, 100) / 100,
+    rock:  clamp(parseFloat(terrainPctInputs.rock.value)  || 0, 0, 100) / 100,
+    sand:  clamp(parseFloat(terrainPctInputs.sand.value)  || 0, 0, 100) / 100,
+  };
 }
-
 function updateSoilDisplay() {
   const { water, rock, sand } = getTerrainPct();
-  const soilPct = Math.max(0, 100 - Math.round((water + rock + sand) * 100));
-  soilPctDisplay.textContent = `Soil: ${soilPct}%`;
+  soilPctDisplay.textContent = `Soil: ${Math.max(0, 100 - Math.round((water + rock + sand) * 100))}%`;
 }
-
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-for (const input of Object.values(terrainPctInputs)) {
-  input.addEventListener('input', updateSoilDisplay);
-}
+for (const inp of Object.values(terrainPctInputs)) inp.addEventListener('input', updateSoilDisplay);
 updateSoilDisplay();
 
-// ── Simulation end condition ──────────────────────────────────────────────────
-// All non-water cells in the vegetation layer are occupied.
-function isVegetationComplete() {
-  const terrain = grid.layers[LAYER_TERRAIN];
-  const veg     = grid.layers[LAYER_VEGETATION];
-  for (let i = 0; i < grid.size; i++) {
-    if (terrain[i] === WATER) continue; // water blocks all land vegetation
-    if (veg[i] === 0) return false;
-  }
-  return true;
-}
-
-// ── Init / reset ──────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────────────
 function init(seed) {
-  currentSeed = (seed !== undefined) ? seed : randomSeed();
-
+  currentSeed = seed !== undefined ? seed : randomSeed();
   const initRng = createRng(currentSeed);
   simRng        = createRng(currentSeed ^ 0x9E3779B9);
 
   grid.clearAll();
-
-  // Generate terrain using the init RNG.
   generateTerrain(grid, getTerrainPct(), initRng);
 
-  // Seed one grass cell on a non-water cell.
-  _seedEntity(grid, GRASS, LAYER_VEGETATION, initRng);
-  // Seed one tree cell on a different non-water cell.
-  _seedEntity(grid, TREE, LAYER_VEGETATION, initRng);
+  _seedEntity(GRASS,      LAYER_VEGETATION, initRng);
+  _seedEntity(TREE,       LAYER_VEGETATION, initRng);
+  _seedEntity(HERBIVORE,  LAYER_ANIMALS,    initRng);
+  _seedEntity(PREDATOR,   LAYER_ANIMALS,    initRng);
 
-  generation   = 0;
-  finished     = false;
-  prevVegCount = grid.countState(GRASS, LAYER_VEGETATION)
-               + grid.countState(TREE,  LAYER_VEGETATION);
+  generation    = 0;
+  finished      = false;
+  stableTicks   = 0;
+  prevTotalVeg  = grid.countState(GRASS, LAYER_VEGETATION) + grid.countState(TREE, LAYER_VEGETATION);
+  prevTotalAnimal = grid.countState(HERBIVORE, LAYER_ANIMALS) + grid.countState(PREDATOR, LAYER_ANIMALS);
+
   stats.reset();
+  events.reset();
+  resetLifetimeCounts();
 
-  seedDisplay.value  = seedToHex(currentSeed);
-  shareInput.value   = encodeWorld(grid, currentSeed, rules);
-  statsSumEl.textContent  = '';
-  statsLiveEl.textContent = '';
+  seedDisplay.value   = seedToHex(currentSeed);
+  shareInput.value    = encodeWorld(grid, currentSeed, rules);
+  statsSumEl.textContent = '';
 
   loop.stop();
   toggleAuto.checked = false;
@@ -126,15 +136,11 @@ function init(seed) {
   renderer.draw();
 }
 
-/**
- * Place one seed cell of `entityType` on the given layer, avoiding water and
- * already-occupied cells. Assigns a randomised lifespan from the entity's rule.
- */
-function _seedEntity(grid, entityType, layer, rng) {
-  // Find the rule that owns this entity type to read its lifespan params.
+function _seedEntity(entityType, layer, rng) {
   const rule = rules.rules.find(r => r.entity?.typeId === entityType && r.entity?.layer === layer);
   const baseLifespan    = rule?.entity?.baseLifespan    ?? 0;
   const lifespanVariance = rule?.entity?.lifespanVariance ?? 0;
+  const baseEnergy      = rule?.entity?.baseEnergy      ?? 0;
 
   for (let attempt = 0; attempt < 200; attempt++) {
     const x = Math.floor(rng() * WIDTH);
@@ -142,7 +148,7 @@ function _seedEntity(grid, entityType, layer, rng) {
     if (grid.get(x, y, LAYER_TERRAIN) === WATER) continue;
     if (grid.get(x, y, layer) !== 0) continue;
     const ls = baseLifespan > 0 ? computeLifespan(baseLifespan, lifespanVariance, rng) : 0;
-    grid.place(x, y, entityType, layer, ls);
+    grid.place(x, y, entityType, layer, ls, baseEnergy);
     return;
   }
 }
@@ -151,47 +157,78 @@ function _seedEntity(grid, entityType, layer, rng) {
 function tick() {
   if (finished) return;
 
-  rules.applyAll(grid, simRng);
+  events.flush();
+  rules.applyAll(grid, simRng, events);
   generation++;
 
-  const grassCount = grid.countState(GRASS, LAYER_VEGETATION);
-  const treeCount  = grid.countState(TREE,  LAYER_VEGETATION);
-  const vegCount   = grassCount + treeCount;
-  const delta      = vegCount - prevVegCount;
-
-  stats.push([grassCount, treeCount]);
-  prevVegCount = vegCount;
-
-  if (isVegetationComplete()) {
-    finished = true;
-    loop.stop();
-    toggleAuto.checked = false;
-    btnNext.disabled   = true;
-    renderDone(grassCount, treeCount);
-  } else {
-    updateStatus(grassCount, treeCount, delta);
+  // Process events → update lifetime counts.
+  for (const ev of events.current) {
+    const k = ENTITY_KEYS.find(k => k.typeId === ev.entityTypeId && k.layer === ev.layer);
+    if (!k) continue;
+    const key = _ekey(k);
+    if (ev.type === 'birth') lifetimeBirths[key] = (lifetimeBirths[key] || 0) + 1;
+    else if (ev.type.startsWith('death')) lifetimeDeaths[key] = (lifetimeDeaths[key] || 0) + 1;
   }
 
+  // Count current populations.
+  const counts = [
+    grid.countState(GRASS,     LAYER_VEGETATION),
+    grid.countState(TREE,      LAYER_VEGETATION),
+    grid.countState(HERBIVORE, LAYER_ANIMALS),
+    grid.countState(PREDATOR,  LAYER_ANIMALS),
+  ];
+  stats.push(counts);
+
+  // Stable-tick auto-stop: no change in any population for 5 consecutive ticks.
+  const totalVeg    = counts[0] + counts[1];
+  const totalAnimal = counts[2] + counts[3];
+  if (totalVeg === prevTotalVeg && totalAnimal === prevTotalAnimal) {
+    stableTicks++;
+    if (stableTicks >= 5) {
+      finished = true;
+      loop.stop();
+      toggleAuto.checked = false;
+      btnNext.disabled   = true;
+      statsSumEl.textContent = `Simulation stabilised after ${generation} ticks.`;
+    }
+  } else {
+    stableTicks = 0;
+  }
+  prevTotalVeg    = totalVeg;
+  prevTotalAnimal = totalAnimal;
+
+  updateStatus(counts);
   renderer.draw();
 }
 
-function updateStatus(grassCount, treeCount, delta) {
-  const g = grassCount ?? grid.countState(GRASS, LAYER_VEGETATION);
-  const t = treeCount  ?? grid.countState(TREE,  LAYER_VEGETATION);
-  const d = delta ?? 0;
-  const total = WIDTH * HEIGHT;
-  statusLine.textContent  = `Generation: ${generation}  |  Grass: ${g}  |  Tree: ${t}  |  Total veg: ${g + t} / ${total}`;
-  statsLiveEl.textContent = d >= 0 ? `+${d} this tick` : `${d} this tick`;
+function updateStatus(counts) {
+  const c = counts ?? [
+    grid.countState(GRASS,     LAYER_VEGETATION),
+    grid.countState(TREE,      LAYER_VEGETATION),
+    grid.countState(HERBIVORE, LAYER_ANIMALS),
+    grid.countState(PREDATOR,  LAYER_ANIMALS),
+  ];
+  statusLine.textContent = `Generation: ${generation}`;
+  renderStatsTable(c);
 }
 
-function renderDone(grassCount, treeCount) {
-  const gs = stats.summary(0);
-  const ts = stats.summary(1);
-  statusLine.textContent = `Vegetation complete after ${generation} ticks.`;
-  statsSumEl.innerHTML   =
-    `Grass — peak: ${gs.max}, avg growth: ${gs.avgGrowth}/tick &nbsp;|&nbsp; ` +
-    `Tree — peak: ${ts.max}, avg growth: ${ts.avgGrowth}/tick`;
-  statsLiveEl.textContent = '';
+function renderStatsTable(counts) {
+  const rows = ENTITY_KEYS.map((k, i) => {
+    const key    = _ekey(k);
+    const pop    = counts[i];
+    const births = lifetimeBirths[key] || 0;
+    const deaths = lifetimeDeaths[key] || 0;
+    const total  = births + deaths;
+    const ratio  = total > 0 ? ((deaths / total) * 100).toFixed(1) + '%' : '—';
+    return `<tr>
+      <td>${k.icon} ${k.label}</td>
+      <td>${pop}</td>
+      <td>${births}</td>
+      <td>${deaths}</td>
+      <td>${ratio}</td>
+    </tr>`;
+  });
+  statsTableEl.innerHTML = rows.join('');
 }
 
 // ── Loop ──────────────────────────────────────────────────────────────────────
@@ -199,30 +236,24 @@ const loop = new Loop(tick);
 
 // ── Control events ────────────────────────────────────────────────────────────
 btnNext.addEventListener('click', () => tick());
-
 btnReset.addEventListener('click', () => init());
-
 toggleAuto.addEventListener('change', () => {
   if (finished) { toggleAuto.checked = false; return; }
   loop.setAuto(toggleAuto.checked);
   btnNext.disabled = toggleAuto.checked;
 });
-
 inputDelay.addEventListener('change', () => {
   const ms = parseInt(inputDelay.value, 10);
   if (!isNaN(ms) && ms > 0) loop.setDelay(ms);
 });
-
-// ── Seed controls ─────────────────────────────────────────────────────────────
 btnNewSeed.addEventListener('click', () => init());
-
 seedDisplay.addEventListener('change', () => {
   const seed = hexToSeed(seedDisplay.value);
   if (seed !== null) init(seed);
   else seedDisplay.value = seedToHex(currentSeed);
 });
 
-// ── Share controls ────────────────────────────────────────────────────────────
+// ── Share ─────────────────────────────────────────────────────────────────────
 btnCopy.addEventListener('click', () => {
   navigator.clipboard.writeText(shareInput.value).then(() => {
     btnCopy.textContent = 'Copied!';
@@ -237,20 +268,21 @@ btnLoad.addEventListener('click', () => {
       grid.layers[l].set(decoded.layers[l]);
       grid.age[l].fill(0);
       if (decoded.lifespans?.[l]) grid.lifespan[l].set(decoded.lifespans[l]);
+      if (decoded.energies?.[l])  grid.energy[l].set(decoded.energies[l]);
     }
     rules.setEnabledByIndices(decoded.enabledRuleIndices);
     rebuildRuleCheckboxes();
 
-    currentSeed        = decoded.seed;
-    seedDisplay.value  = seedToHex(currentSeed);
-    simRng             = createRng(currentSeed ^ 0x9E3779B9);
-    generation         = 0;
-    finished           = false;
-    prevVegCount       = grid.countState(GRASS, LAYER_VEGETATION)
-                       + grid.countState(TREE,  LAYER_VEGETATION);
+    currentSeed = decoded.seed;
+    seedDisplay.value = seedToHex(currentSeed);
+    simRng      = createRng(currentSeed ^ 0x9E3779B9);
+    generation  = 0;
+    finished    = false;
+    stableTicks = 0;
     stats.reset();
-    statsSumEl.textContent  = '';
-    statsLiveEl.textContent = '';
+    events.reset();
+    resetLifetimeCounts();
+    statsSumEl.textContent = '';
 
     loop.stop();
     toggleAuto.checked = false;
@@ -258,52 +290,43 @@ btnLoad.addEventListener('click', () => {
 
     updateStatus();
     renderer.draw();
-  } catch (e) {
-    alert(`Failed to load world: ${e.message}`);
+  } catch (err) {
+    alert(`Failed to load world: ${err.message}`);
   }
 });
 
-// ── Rule checkboxes ───────────────────────────────────────────────────────────
+// ── Rule UI ───────────────────────────────────────────────────────────────────
 function rebuildRuleCheckboxes() {
   rulesList.innerHTML = '';
   for (const rule of rules.rules) {
-    const wrapper  = document.createElement('div');
+    const wrapper = document.createElement('div');
     wrapper.className = 'rule-entry';
 
-    // Enable/disable checkbox + rule name
-    const lbl      = document.createElement('label');
-    const checkbox = document.createElement('input');
-    checkbox.type    = 'checkbox';
-    checkbox.checked = rules.isEnabled(rule.id);
-    checkbox.addEventListener('change', () => rules.toggle(rule.id));
-    lbl.appendChild(checkbox);
+    const lbl = document.createElement('label');
+    const cb  = document.createElement('input');
+    cb.type    = 'checkbox';
+    cb.checked = rules.isEnabled(rule.id);
+    cb.addEventListener('change', () => rules.toggle(rule.id));
+    lbl.appendChild(cb);
     lbl.appendChild(document.createTextNode(` ${rule.name}`));
     wrapper.appendChild(lbl);
 
-    // Description
     const desc = document.createElement('div');
     desc.className   = 'rule-desc';
     desc.textContent = rule.description;
     wrapper.appendChild(desc);
 
-    // Lifespan params — only for entity rules that have a baseLifespan
     if (rule.entity?.baseLifespan !== undefined) {
       const params = document.createElement('div');
       params.className = 'rule-params';
-
-      params.appendChild(_makeNumberInput(
-        'Lifespan (ticks)',
-        rule.entity.baseLifespan,
-        1, 9999,
-        v => { rule.entity.baseLifespan = v; }
-      ));
-      params.appendChild(_makeNumberInput(
-        'Variance (%)',
-        Math.round(rule.entity.lifespanVariance * 100),
-        0, 100,
-        v => { rule.entity.lifespanVariance = v / 100; }
-      ));
-
+      params.appendChild(_numInput('Lifespan (ticks)', rule.entity.baseLifespan, 1, 9999,
+        v => { rule.entity.baseLifespan = v; }));
+      params.appendChild(_numInput('Variance (%)', Math.round(rule.entity.lifespanVariance * 100), 0, 100,
+        v => { rule.entity.lifespanVariance = v / 100; }));
+      if (rule.entity.baseEnergy !== undefined) {
+        params.appendChild(_numInput('Base energy', rule.entity.baseEnergy, 0, 9999,
+          v => { rule.entity.baseEnergy = v; }));
+      }
       wrapper.appendChild(params);
     }
 
@@ -311,21 +334,21 @@ function rebuildRuleCheckboxes() {
   }
 }
 
-function _makeNumberInput(labelText, initialValue, min, max, onChange) {
+function _numInput(label, initial, min, max, onChange) {
   const wrap  = document.createElement('label');
   wrap.className = 'param-label';
-  const input = document.createElement('input');
-  input.type  = 'number';
-  input.className = 'param-input';
-  input.value = initialValue;
-  input.min   = min;
-  input.max   = max;
-  input.addEventListener('change', () => {
-    const v = parseFloat(input.value);
+  const inp   = document.createElement('input');
+  inp.type    = 'number';
+  inp.className = 'param-input';
+  inp.value   = initial;
+  inp.min     = min;
+  inp.max     = max;
+  inp.addEventListener('change', () => {
+    const v = parseFloat(inp.value);
     if (!isNaN(v)) onChange(v);
   });
-  wrap.appendChild(document.createTextNode(labelText + ': '));
-  wrap.appendChild(input);
+  wrap.appendChild(document.createTextNode(label + ': '));
+  wrap.appendChild(inp);
   return wrap;
 }
 
@@ -333,17 +356,16 @@ function _makeNumberInput(labelText, initialValue, min, max, onChange) {
 function buildLegend() {
   legendEl.innerHTML = '';
 
-  // Terrain section
   const terrainHeader = document.createElement('div');
   terrainHeader.className   = 'legend-group-label';
   terrainHeader.textContent = 'Terrain';
   legendEl.appendChild(terrainHeader);
 
   for (const t of ALL_TERRAINS) {
-    const row   = document.createElement('div');
+    const row    = document.createElement('div');
     row.className = 'legend-row';
     const swatch = document.createElement('span');
-    swatch.className = 'legend-swatch';
+    swatch.className        = 'legend-swatch';
     swatch.style.background = t.color;
     const name = document.createElement('span');
     name.textContent = t.name;
@@ -352,25 +374,29 @@ function buildLegend() {
     legendEl.appendChild(row);
   }
 
-  // Vegetation entities
-  const vegHeader = document.createElement('div');
-  vegHeader.className   = 'legend-group-label';
-  vegHeader.textContent = 'Vegetation';
-  legendEl.appendChild(vegHeader);
+  for (const [groupLabel, layerFilter] of [
+    ['Vegetation', LAYER_VEGETATION],
+    ['Animals',    LAYER_ANIMALS],
+  ]) {
+    const header = document.createElement('div');
+    header.className   = 'legend-group-label';
+    header.textContent = groupLabel;
+    legendEl.appendChild(header);
 
-  for (const rule of rules.rules) {
-    if (!rule.entity) continue;
-    const { icon, name, description } = rule.entity;
-    const row  = document.createElement('div');
-    row.className = 'legend-row';
-    const iconEl = document.createElement('span');
-    iconEl.className   = 'legend-icon';
-    iconEl.textContent = icon;
-    const nameEl = document.createElement('span');
-    nameEl.textContent = `${name} — ${description}`;
-    row.appendChild(iconEl);
-    row.appendChild(nameEl);
-    legendEl.appendChild(row);
+    for (const rule of rules.rules) {
+      if (!rule.entity || rule.entity.layer !== layerFilter) continue;
+      const { icon, name, description } = rule.entity;
+      const row    = document.createElement('div');
+      row.className = 'legend-row';
+      const iconEl = document.createElement('span');
+      iconEl.className   = 'legend-icon';
+      iconEl.textContent = icon;
+      const nameEl = document.createElement('span');
+      nameEl.textContent = `${name} — ${description}`;
+      row.appendChild(iconEl);
+      row.appendChild(nameEl);
+      legendEl.appendChild(row);
+    }
   }
 }
 

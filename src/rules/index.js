@@ -1,13 +1,19 @@
-import grassSpread     from './grass-spread.js';
-import treeSpread      from './tree-spread.js';
-import vegetationAging from './vegetation-aging.js';
+import grassSpread        from './grass-spread.js';
+import treeSpread         from './tree-spread.js';
+import vegetationAging    from './vegetation-aging.js';
+import herbivoreBehavior  from './herbivore-behavior.js';
+import predatorBehavior   from './predator-behavior.js';
 
-// Rule application order matters:
-// 1. Spread rules run first (entities reproduce).
-// 2. Aging runs last (entities may die after getting a chance to spread).
+// Application order:
+//   1. Vegetation spreads
+//   2. Animals act (eat, move, reproduce) — may consume vegetation
+//   3. Vegetation ages/dies
+//   4. (Animal death from starvation/age is handled inline in each animal rule)
 export const ALL_RULES = [
   grassSpread,
   treeSpread,
+  herbivoreBehavior,
+  predatorBehavior,
   vegetationAging,
 ];
 
@@ -17,16 +23,11 @@ export function createRuleRegistry() {
   return {
     rules: ALL_RULES,
 
-    isEnabled(id) {
-      return enabled.has(id);
-    },
+    isEnabled(id) { return enabled.has(id); },
 
     toggle(id) {
-      if (enabled.has(id)) {
-        enabled.delete(id);
-      } else {
-        enabled.add(id);
-      }
+      if (enabled.has(id)) enabled.delete(id);
+      else enabled.add(id);
     },
 
     setEnabledByIndices(indices) {
@@ -36,9 +37,10 @@ export function createRuleRegistry() {
       }
     },
 
-    applyAll(grid, rng) {
+    // events is an EventLog instance — passed to every rule's apply().
+    applyAll(grid, rng, events) {
       for (const rule of ALL_RULES) {
-        if (enabled.has(rule.id)) rule.apply(grid, rng);
+        if (enabled.has(rule.id)) rule.apply(grid, rng, events);
       }
     },
   };
