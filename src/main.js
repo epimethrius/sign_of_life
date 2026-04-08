@@ -15,9 +15,6 @@ import { encodeWorld, decodeWorld } from './serializer.js';
 import { generateTerrain }    from './terrain-gen.js';
 import { ALL_TERRAINS, terrainOf } from './terrains/index.js';
 
-const WIDTH  = 10;
-const HEIGHT = 10;
-
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const canvas        = document.getElementById('grid-canvas');
 const statusLine    = document.getElementById('status-line');
@@ -35,6 +32,7 @@ const btnLoad       = document.getElementById('btn-load');
 const rulesList     = document.getElementById('rules-list');
 const tagFilterEl   = document.getElementById('tag-filter');
 const legendEl      = document.getElementById('legend-content');
+const gridSizeEl    = document.getElementById('grid-size');
 
 const terrainPctInputs = {
   water: document.getElementById('pct-water'),
@@ -62,8 +60,9 @@ function getPopCount(typeId, layer) {
 }
 
 // ── Core objects ──────────────────────────────────────────────────────────────
-const grid   = new Grid(WIDTH, HEIGHT);
-const renderer = new Renderer(canvas, grid);
+let grid     = new Grid(10, 10);
+let renderer = new Renderer(canvas, grid);
+_applyEntityIcons();
 const rules  = createRuleRegistry();
 const events = new EventLog();
 const stats  = new StatsBuffer(4, 1000); // series: 0=GRASS,1=TREE,2=HERBIVORE,3=PREDATOR
@@ -85,8 +84,10 @@ function resetLifetimeCounts() {
 }
 function _ekey(k) { return `${k.typeId}:${k.layer}`; }
 
-renderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲']]));
-renderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊']]));
+function _applyEntityIcons() {
+  renderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲']]));
+  renderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊']]));
+}
 
 let simRng;
 let currentSeed;
@@ -187,8 +188,8 @@ function _seedMany(entityType, layer, count, foodConstraint, rng) {
 
 function _validCells(layer) {
   const cells = [];
-  for (let y = 0; y < HEIGHT; y++) {
-    for (let x = 0; x < WIDTH; x++) {
+  for (let y = 0; y < grid.height; y++) {
+    for (let x = 0; x < grid.width; x++) {
       if (grid.get(x, y, LAYER_TERRAIN) === WATER) continue;
       if (grid.get(x, y, layer) !== EMPTY) continue;
       cells.push([x, y]);
@@ -201,7 +202,7 @@ function _hasNearbyFood(x, y, foodLayer, foodTypes, maxDist) {
   for (let dy = -maxDist; dy <= maxDist; dy++) {
     for (let dx = -maxDist; dx <= maxDist; dx++) {
       const nx = x + dx, ny = y + dy;
-      if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) continue;
+      if (nx < 0 || nx >= grid.width || ny < 0 || ny >= grid.height) continue;
       if (foodTypes.includes(grid.get(nx, ny, foodLayer))) return true;
     }
   }
@@ -287,6 +288,14 @@ inputDelay.addEventListener('change', () => {
   if (!isNaN(ms) && ms > 0) loop.setDelay(ms);
 });
 btnNewSeed.addEventListener('click', () => init());
+gridSizeEl.addEventListener('change', () => {
+  const size = parseInt(gridSizeEl.value, 10);
+  loop.stop();
+  grid     = new Grid(size, size);
+  renderer = new Renderer(canvas, grid);
+  _applyEntityIcons();
+  init();
+});
 seedDisplay.addEventListener('change', () => {
   const seed = hexToSeed(seedDisplay.value);
   if (seed !== null) init(seed);
@@ -485,11 +494,11 @@ function buildLegend() {
 const tooltipEl = document.getElementById('cell-tooltip');
 
 canvas.addEventListener('mousemove', e => {
-  const cellSize = canvas.width / WIDTH;
+  const cellSize = canvas.width / grid.width;
   const rect = canvas.getBoundingClientRect();
   const cx   = Math.floor((e.clientX - rect.left) / cellSize);
   const cy   = Math.floor((e.clientY - rect.top)  / cellSize);
-  if (cx < 0 || cx >= WIDTH || cy < 0 || cy >= HEIGHT) return;
+  if (cx < 0 || cx >= grid.width || cy < 0 || cy >= grid.height) return;
 
   const lines = [];
 

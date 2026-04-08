@@ -242,11 +242,10 @@ seed + share UI, rule registry with enable/disable.
 - [x] Stats table: population + lifetime births + deaths + death ratio per entity
 - [x] Auto-stop changed to: no population change for 5 consecutive ticks
 
-### M5 — Interactivity & Sharing
+### M5 — Interactivity & Sharing ✓
 
-- [ ] Click/drag to paint cells on canvas (per layer, per entity type)
-- [ ] Grid size selector (triggers re-init)
-- [ ] GitHub Actions → build → GitHub Pages
+- [x] Grid size selector (triggers re-init)
+- [x] GitHub Actions → build → GitHub Pages
 
 ### M6 — Mutations & Adaptation
 
