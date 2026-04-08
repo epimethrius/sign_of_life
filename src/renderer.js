@@ -58,9 +58,9 @@ export class Renderer {
           const icon = this._icons.get(LAYER_VEGETATION)?.get(vegType);
           if (icon) {
             if (hasAnimal) {
-              // Both present: vegetation shrunk to top-right corner.
-              ctx.font = `${Math.floor(CELL_SIZE * 0.28)}px serif`;
-              ctx.fillText(icon, x * CELL_SIZE + CELL_SIZE * 0.78, y * CELL_SIZE + CELL_SIZE * 0.25);
+              // Both present: vegetation to top-left corner.
+              ctx.font = `${Math.floor(CELL_SIZE * 0.42)}px serif`;
+              ctx.fillText(icon, x * CELL_SIZE + CELL_SIZE * 0.27, y * CELL_SIZE + CELL_SIZE * 0.27);
             } else {
               // Vegetation only: centered.
               ctx.font = `${Math.floor(CELL_SIZE * 0.55)}px serif`;
@@ -73,8 +73,15 @@ export class Renderer {
         if (hasAnimal) {
           const icon = this._icons.get(LAYER_ANIMALS)?.get(animalType);
           if (icon) {
-            ctx.font = `${Math.floor(CELL_SIZE * 0.60)}px serif`;
-            ctx.fillText(icon, cx, cy + 1);
+            if (hasVeg) {
+              // Both present: animal to bottom-right corner.
+              ctx.font = `${Math.floor(CELL_SIZE * 0.42)}px serif`;
+              ctx.fillText(icon, x * CELL_SIZE + CELL_SIZE * 0.73, y * CELL_SIZE + CELL_SIZE * 0.73);
+            } else {
+              // Animal only: centered.
+              ctx.font = `${Math.floor(CELL_SIZE * 0.60)}px serif`;
+              ctx.fillText(icon, cx, cy + 1);
+            }
           }
         }
       }
