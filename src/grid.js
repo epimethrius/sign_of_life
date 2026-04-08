@@ -36,10 +36,12 @@ export class Grid {
     //   age[l]      Uint16Array  — ticks this entity has been alive
     //   lifespan[l] Uint16Array  — max ticks before entity dies (0 = immortal)
     //   energy[l]   Float32Array — energy level (meaningful for LAYER_ANIMALS)
-    this.layers   = Array.from({ length: NUM_LAYERS }, () => new Uint8Array(this.size));
-    this.age      = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
-    this.lifespan = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
-    this.energy   = Array.from({ length: NUM_LAYERS }, () => new Float32Array(this.size));
+    this.layers       = Array.from({ length: NUM_LAYERS }, () => new Uint8Array(this.size));
+    this.age          = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
+    this.lifespan     = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
+    this.energy       = Array.from({ length: NUM_LAYERS }, () => new Float32Array(this.size));
+    // Ticks remaining before this animal may reproduce again (0 = ready).
+    this.reproCooldown = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
   }
 
   // ── Core accessors ───────────────────────────────────────────────────────────
@@ -72,10 +74,11 @@ export class Grid {
    */
   kill(x, y, layer) {
     const i = y * this.width + x;
-    this.layers[layer][i]   = EMPTY;
-    this.age[layer][i]      = 0;
-    this.lifespan[layer][i] = 0;
-    this.energy[layer][i]   = 0;
+    this.layers[layer][i]        = EMPTY;
+    this.age[layer][i]           = 0;
+    this.lifespan[layer][i]      = 0;
+    this.energy[layer][i]        = 0;
+    this.reproCooldown[layer][i] = 0;
   }
 
   /**
@@ -86,14 +89,16 @@ export class Grid {
   move(fromX, fromY, toX, toY, layer) {
     const fi = fromY * this.width + fromX;
     const ti = toY  * this.width + toX;
-    this.layers[layer][ti]   = this.layers[layer][fi];
-    this.age[layer][ti]      = this.age[layer][fi];
-    this.lifespan[layer][ti] = this.lifespan[layer][fi];
-    this.energy[layer][ti]   = this.energy[layer][fi];
-    this.layers[layer][fi]   = EMPTY;
-    this.age[layer][fi]      = 0;
-    this.lifespan[layer][fi] = 0;
-    this.energy[layer][fi]   = 0;
+    this.layers[layer][ti]        = this.layers[layer][fi];
+    this.age[layer][ti]           = this.age[layer][fi];
+    this.lifespan[layer][ti]      = this.lifespan[layer][fi];
+    this.energy[layer][ti]        = this.energy[layer][fi];
+    this.reproCooldown[layer][ti] = this.reproCooldown[layer][fi];
+    this.layers[layer][fi]        = EMPTY;
+    this.age[layer][fi]           = 0;
+    this.lifespan[layer][fi]      = 0;
+    this.energy[layer][fi]        = 0;
+    this.reproCooldown[layer][fi] = 0;
   }
 
   inBounds(x, y) {
@@ -146,6 +151,7 @@ export class Grid {
     this.age[layer].fill(0);
     this.lifespan[layer].fill(0);
     this.energy[layer].fill(0);
+    this.reproCooldown[layer].fill(0);
   }
 
   clearAll() {
@@ -154,6 +160,7 @@ export class Grid {
       this.age[l].fill(0);
       this.lifespan[l].fill(0);
       this.energy[l].fill(0);
+      this.reproCooldown[l].fill(0);
     }
   }
 }

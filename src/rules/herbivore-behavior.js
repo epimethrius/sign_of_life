@@ -1,5 +1,5 @@
 import { HERBIVORE, GRASS, TREE, WATER, LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
-import { pickAction, computeLifespan } from '../actions.js';
+import { pickActionDynamic, computeLifespan } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
 
 export default {
@@ -19,8 +19,9 @@ export default {
     energyDecayPerTick: 0.8,
     energyFromGrass:    6,
     energyFromTree:     3,
-    reproThreshold:     12,        // lowered so reproduction is observable
-    reproCost:          8,
+    reproThreshold:       12,
+    reproCost:            8,
+    reproCooldownDivisor: 4,  // cooldown = floor(lifespan / divisor) ticks after each birth
     // Spawn constraint: place within 2 cells (Chebyshev) of compatible food.
     spawnNearFood: { layer: LAYER_VEGETATION, types: [GRASS, TREE] },
   },
@@ -57,8 +58,9 @@ export default {
       const terrainCost = effectOf(grid.get(x, y, LAYER_TERRAIN), 'moveEnergyCost');
       grid.energy[animalLayer][i] -= e.energyDecayPerTick * terrainCost;
 
-      // ── Age ─────────────────────────────────────────────────────────────────
+      // ── Age & repro cooldown ────────────────────────────────────────────────
       grid.age[animalLayer][i]++;
+      if (grid.reproCooldown[animalLayer][i] > 0) grid.reproCooldown[animalLayer][i]--;
 
       // ── Death: starvation or old age ────────────────────────────────────────
       const starved = grid.energy[animalLayer][i] <= 0;
@@ -72,7 +74,7 @@ export default {
       }
 
       // ── Action ──────────────────────────────────────────────────────────────
-      const action = pickAction(this.actions, rng);
+      const action = pickActionDynamic(this.actions, grid.energy[animalLayer][i], e.reproThreshold, rng);
 
       if (action === 'EAT') {
         const vegType = grid.get(x, y, LAYER_VEGETATION);
@@ -96,7 +98,8 @@ export default {
         }
 
       } else if (action === 'REPRODUCE') {
-        if (grid.energy[animalLayer][i] >= e.reproThreshold) {
+        if (grid.energy[animalLayer][i] >= e.reproThreshold
+            && grid.reproCooldown[animalLayer][i] === 0) {
           const targets = grid.spreadTargets(x, y, animalLayer, [])
             .filter(([nx, ny]) => grid.get(nx, ny, LAYER_TERRAIN) !== WATER);
           if (targets.length > 0) {
@@ -104,6 +107,7 @@ export default {
             grid.energy[animalLayer][i] -= e.reproCost;
             const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
             grid.place(nx, ny, HERBIVORE, animalLayer, ls, e.baseEnergy);
+            grid.reproCooldown[animalLayer][i] = Math.max(1, Math.floor(grid.lifespan[animalLayer][i] / e.reproCooldownDivisor));
             events.log('birth', HERBIVORE, animalLayer);
           }
         }

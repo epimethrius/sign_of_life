@@ -451,6 +451,9 @@ function rebuildRuleUI() {
       if (rule.entity.reproThreshold !== undefined)
         params.appendChild(_numInput('Repro threshold', rule.entity.reproThreshold, 1, 9999,
           v => { rule.entity.reproThreshold = v; }));
+      if (rule.entity.reproCooldownDivisor !== undefined)
+        params.appendChild(_numInput('Repro cooldown (lifespan÷)', rule.entity.reproCooldownDivisor, 1, 100,
+          v => { rule.entity.reproCooldownDivisor = v; }));
       wrapper.appendChild(params);
     }
 
@@ -538,8 +541,10 @@ canvas.addEventListener('mousemove', e => {
     const i      = cy * grid.width + cx;
     const age    = grid.age[LAYER_ANIMALS][i];
     const ls     = grid.lifespan[LAYER_ANIMALS][i];
-    const energy = grid.energy[LAYER_ANIMALS][i].toFixed(1);
-    lines.push(`${anKey.icon} ${anKey.label} &nbsp; age ${age}/${ls} &nbsp; ⚡${energy}`);
+    const energy  = grid.energy[LAYER_ANIMALS][i].toFixed(1);
+    const cd      = grid.reproCooldown[LAYER_ANIMALS][i];
+    const cdStr   = cd > 0 ? ` &nbsp; 🍼cd ${cd}` : '';
+    lines.push(`${anKey.icon} ${anKey.label} &nbsp; age ${age}/${ls} &nbsp; ⚡${energy}${cdStr}`);
   } else {
     lines.push('<span class="tt-empty">—</span>');
   }

@@ -28,6 +28,29 @@ export function waterProximityBonus(grid, x, y) {
 }
 
 /**
+ * Like pickAction, but scales EAT/MOVE weights up and REPRODUCE/IDLE weights
+ * down when the animal is hungry.
+ *
+ * @param {Array<{action: string, weight: number}>} baseActions
+ * @param {number} energy          Current energy level.
+ * @param {number} reproThreshold  Energy considered "full" (used as reference).
+ * @param {function(): number} rng
+ * @returns {string} the chosen action name
+ */
+export function pickActionDynamic(baseActions, energy, reproThreshold, rng) {
+  // hunger: 0 when energy >= reproThreshold (well-fed), 1 when energy <= 0 (starving).
+  const hunger = 1 - Math.min(1, Math.max(0, energy / reproThreshold));
+  const adjusted = baseActions.map(({ action, weight }) => {
+    if (action === 'EAT' || action === 'MOVE')
+      return { action, weight: weight * (1 + hunger * 2) };
+    if (action === 'REPRODUCE' || action === 'IDLE')
+      return { action, weight: weight * (1 - hunger * 0.85) };
+    return { action, weight };
+  });
+  return pickAction(adjusted, rng);
+}
+
+/**
  * Picks one action from a weighted list using the seeded RNG.
  *
  * @param {Array<{action: string, weight: number}>} actions
