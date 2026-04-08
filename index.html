@@ -8,8 +8,8 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #111;
-      color: #ddd;
+      background: #fff;
+      color: #222;
       font-family: monospace;
       padding: 24px;
       display: flex;
@@ -18,15 +18,15 @@
     }
 
     /* ── Page title ── */
-    h1 { font-size: 1.2rem; letter-spacing: 0.12em; color: #aaa; }
+    h1 { font-size: 1.2rem; letter-spacing: 0.12em; color: #555; }
 
     /* ── Section headers ── */
     .section-header {
       font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 0.14em;
-      color: #444;
-      border-bottom: 1px solid #1e1e1e;
+      color: #aaa;
+      border-bottom: 1px solid #ddd;
       padding-bottom: 4px;
       margin-bottom: 8px;
     }
@@ -34,7 +34,7 @@
     /* ── Inline labels (seed, share, etc.) ── */
     .inline-label {
       font-size: 0.7rem;
-      color: #555;
+      color: #999;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       flex-shrink: 0;
@@ -49,7 +49,7 @@
 
     #map-col { display: flex; flex-direction: column; gap: 6px; }
 
-    #grid-canvas { border: 1px solid #2a2a2a; display: block; }
+    #grid-canvas { border: 1px solid #ccc; display: block; }
 
     /* ── legend ── */
     #legend {
@@ -62,32 +62,32 @@
       font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      color: #555;
+      color: #aaa;
       margin-top: 6px;
     }
     .legend-group-label:first-child { margin-top: 0; }
-    .legend-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #aaa; }
-    .legend-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid #333; flex-shrink: 0; }
+    .legend-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #555; }
+    .legend-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid #ccc; flex-shrink: 0; }
     .legend-icon { width: 18px; text-align: center; flex-shrink: 0; font-size: 1rem; }
 
     /* ── status + stats ── */
-    #status-line { font-size: 0.85rem; color: #888; min-height: 1.2em; }
-    #stats-summary { font-size: 0.8rem; color: #5a8f6a; min-height: 1em; }
+    #status-line { font-size: 0.85rem; color: #777; min-height: 1.2em; }
+    #stats-summary { font-size: 0.8rem; color: #3a7a4a; min-height: 1em; }
 
     #stats-wrapper {
       border-collapse: collapse;
       font-size: 0.8rem;
-      color: #888;
+      color: #555;
     }
     #stats-wrapper th {
       text-align: left;
-      color: #555;
+      color: #aaa;
       font-weight: normal;
       padding: 0 16px 4px 0;
-      border-bottom: 1px solid #222;
+      border-bottom: 1px solid #ddd;
     }
-    #stats-wrapper td { padding: 2px 16px 2px 0; color: #999; }
-    #stats-wrapper td:first-child { color: #bbb; }
+    #stats-wrapper td { padding: 2px 16px 2px 0; color: #666; }
+    #stats-wrapper td:first-child { color: #333; }
 
     /* ── rows ── */
     .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -95,29 +95,29 @@
 
     /* ── buttons ── */
     button {
-      background: #1e1e1e;
-      color: #ccc;
-      border: 1px solid #3a3a3a;
+      background: #f0f0f0;
+      color: #333;
+      border: 1px solid #ccc;
       padding: 4px 12px;
       cursor: pointer;
       font-family: monospace;
       font-size: 0.85rem;
     }
-    button:hover:not(:disabled) { background: #2a2a2a; }
+    button:hover:not(:disabled) { background: #e0e0e0; }
     button:disabled { opacity: 0.35; cursor: default; }
 
     /* ── inputs ── */
     input[type="text"], input[type="number"] {
-      background: #1a1a1a;
-      color: #ccc;
-      border: 1px solid #3a3a3a;
+      background: #f8f8f8;
+      color: #333;
+      border: 1px solid #ccc;
       padding: 3px 7px;
       font-family: monospace;
       font-size: 0.85rem;
     }
     #seed-display { width: 90px; letter-spacing: 0.05em; }
     #input-delay  { width: 55px; }
-    #share-input  { width: 300px; color: #888; }
+    #share-input  { width: 300px; color: #999; }
     input.pct     { width: 50px; }
     input.pop-n   { width: 44px; }
 
@@ -134,34 +134,34 @@
     /* ── terrain config ── */
     #terrain-config { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 0.85rem; }
     #terrain-config label { display: flex; align-items: center; gap: 5px; }
-    #soil-pct { color: #888; min-width: 70px; }
+    #soil-pct { color: #777; min-width: 70px; }
 
     /* ── rules section ── */
     #tag-filter { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
     .tag-btn {
-      background: #1a1a1a;
-      color: #666;
-      border: 1px solid #2e2e2e;
+      background: #f0f0f0;
+      color: #999;
+      border: 1px solid #ddd;
       padding: 2px 9px;
       cursor: pointer;
       font-family: monospace;
       font-size: 0.75rem;
     }
-    .tag-btn.active { color: #aaa; border-color: #555; background: #222; }
+    .tag-btn.active { color: #333; border-color: #aaa; background: #e0e0e0; }
 
     #rules-list { display: flex; flex-direction: column; gap: 8px; }
     .rule-entry { display: flex; flex-direction: column; gap: 2px; }
     .rule-entry.hidden { display: none; }
     .rule-entry > label { cursor: pointer; font-size: 0.9rem; }
-    .rule-entry > label:hover { color: #fff; }
+    .rule-entry > label:hover { color: #000; }
     .rule-tags { display: flex; gap: 4px; margin-left: 20px; }
-    .rule-tag { font-size: 0.65rem; color: #3a6a3a; border: 1px solid #2a4a2a; padding: 0 5px; }
-    .rule-desc { font-size: 0.75rem; color: #444; margin-left: 20px; }
+    .rule-tag { font-size: 0.65rem; color: #3a7a3a; border: 1px solid #8cc88c; padding: 0 5px; }
+    .rule-desc { font-size: 0.75rem; color: #aaa; margin-left: 20px; }
     .rule-params { display: flex; gap: 12px; margin-left: 20px; margin-top: 3px; flex-wrap: wrap; }
-    .param-label { font-size: 0.75rem; color: #666; display: flex; align-items: center; gap: 4px; }
+    .param-label { font-size: 0.75rem; color: #777; display: flex; align-items: center; gap: 4px; }
     .param-input { width: 52px; }
 
-    hr { border: none; border-top: 1px solid #1e1e1e; }
+    hr { border: none; border-top: 1px solid #e0e0e0; }
   </style>
 </head>
 <body>

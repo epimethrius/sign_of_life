@@ -40,8 +40,11 @@ export function createRuleRegistry() {
     },
 
     applyAll(grid, rng, events) {
+      // Tracks which grid-cell indices had an animal move this tick,
+      // so that no animal moves more than once per tick.
+      const movedThisTick = new Set();
       for (const rule of ALL_RULES) {
-        if (enabled.has(rule.id)) rule.apply(grid, rng, events);
+        if (enabled.has(rule.id)) rule.apply(grid, rng, events, movedThisTick);
       }
     },
   };

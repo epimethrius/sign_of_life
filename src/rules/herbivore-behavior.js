@@ -35,7 +35,7 @@ export default {
     { action: 'IDLE',      weight: 0.10 },
   ],
 
-  apply(grid, rng, events) {
+  apply(grid, rng, events, movedThisTick = new Set()) {
     const e = this.entity;
     const animalLayer = LAYER_ANIMALS;
 
@@ -92,6 +92,7 @@ export default {
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           grid.move(x, y, nx, ny, animalLayer);
+          movedThisTick.add(ny * grid.width + nx);
         }
 
       } else if (action === 'REPRODUCE') {

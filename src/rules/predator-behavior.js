@@ -34,7 +34,7 @@ export default {
     { action: 'IDLE',      weight: 0.05 },
   ],
 
-  apply(grid, rng, events) {
+  apply(grid, rng, events, movedThisTick = new Set()) {
     const e = this.entity;
     const animalLayer = LAYER_ANIMALS;
 
@@ -82,6 +82,7 @@ export default {
           grid.energy[animalLayer][i] += e.energyFromHerbivore;
           // Move predator into the prey's cell (overwriting it).
           grid.move(x, y, nx, ny, animalLayer);
+          movedThisTick.add(ny * grid.width + nx);
         } else {
           // No prey nearby — try to move toward any cell instead.
           const targets = grid.spreadTargets(x, y, animalLayer, [])
@@ -89,6 +90,7 @@ export default {
           if (targets.length > 0) {
             const [nx, ny] = targets[Math.floor(rng() * targets.length)];
             grid.move(x, y, nx, ny, animalLayer);
+            movedThisTick.add(ny * grid.width + nx);
           }
         }
 
@@ -98,6 +100,7 @@ export default {
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           grid.move(x, y, nx, ny, animalLayer);
+          movedThisTick.add(ny * grid.width + nx);
         }
 
       } else if (action === 'REPRODUCE') {

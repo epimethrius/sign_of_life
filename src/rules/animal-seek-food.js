@@ -17,13 +17,16 @@ export default {
 
   actions: [],
 
-  apply(grid, rng, events) {
+  apply(grid, rng, events, movedThisTick = new Set()) {
     // Runs after animal behavior rules so it acts as a corrective nudge:
-    // animals that didn't eat this tick take an extra step toward food.
+    // animals that didn't move this tick take one step toward food.
     for (let y = 0; y < grid.height; y++) {
       for (let x = 0; x < grid.width; x++) {
         const animalType = grid.get(x, y, LAYER_ANIMALS);
         if (animalType === EMPTY) continue;
+
+        // Skip animals that already moved this tick.
+        if (movedThisTick.has(y * grid.width + x)) continue;
 
         const food = FOOD_DEF[animalType];
         if (!food) continue;
