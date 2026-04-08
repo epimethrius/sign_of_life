@@ -12,8 +12,9 @@ export default {
   name: 'Soil',
   color: '#7a5c2e',
   effects: {
-    grassSpreadChance: 1.0,
-    treeSpreadChance:  1.0,
-    moveEnergyCost:    1.0,
+    grassSpreadChance:  1.0,
+    treeSpreadChance:   1.0,
+    moveEnergyCost:     1.0,
+    lifespanMultiplier: 1.0,
   },
 };

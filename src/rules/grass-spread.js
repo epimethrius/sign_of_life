@@ -1,5 +1,5 @@
 import { GRASS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
-import { pickAction, computeLifespan } from '../actions.js';
+import { pickAction, computeLifespan, waterProximityBonus } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
 
 export default {
@@ -41,9 +41,10 @@ export default {
     for (const [x, y] of cells) {
       if (pickAction(this.actions, rng) === 'IDLE') continue;
 
-      // Terrain at source modulates spread probability.
+      // Terrain + water proximity at source modulate spread probability.
       const terrainChance = effectOf(grid.get(x, y, LAYER_TERRAIN), 'grassSpreadChance');
-      if (rng() > terrainChance) continue;
+      const { spreadMult } = waterProximityBonus(grid, x, y);
+      if (rng() > Math.min(1, terrainChance * spreadMult)) continue;
 
       // Only spread to cells where the target terrain also permits grass.
       const targets = grid.spreadTargets(x, y, LAYER_VEGETATION, [])
@@ -51,7 +52,11 @@ export default {
       if (targets.length === 0) continue;
 
       const [nx, ny] = targets[Math.floor(rng() * targets.length)];
-      grid.place(nx, ny, GRASS, LAYER_VEGETATION, computeLifespan(baseLifespan, lifespanVariance, rng));
+      // Lifespan modified by target terrain quality and proximity to water.
+      const terrainLM = effectOf(grid.get(nx, ny, LAYER_TERRAIN), 'lifespanMultiplier');
+      const { lifespanMult } = waterProximityBonus(grid, nx, ny);
+      const ls = computeLifespan(baseLifespan * terrainLM * lifespanMult, lifespanVariance, rng);
+      grid.place(nx, ny, GRASS, LAYER_VEGETATION, ls);
       events.log('birth', GRASS, LAYER_VEGETATION);
     }
   },

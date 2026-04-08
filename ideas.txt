@@ -1,6 +1,2 @@
 1. We should tune the current values a bit, cause with the current parameters the end is always same: rabbits are hunted by foxes, then foxes are dying from the starvation,
     then the grass is overtaken by the trees and this is the end. So: too high reproducing for the trees, reduce spawning, lifespan or both. 
-4. 
-5. We should improve the conditions (as some other basic rules): plants should have longer lifespan and bigger chance of spawning/reproducing in 1-2 cells away from water,
-    and shorter lifespan and very small chance of spawning/reproducing over the rocks and sand.
-6. 

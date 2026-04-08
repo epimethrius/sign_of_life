@@ -1,10 +1,11 @@
 /**
- * Sand — dry, loose ground. Grass spreads readily; trees struggle.
+ * Sand — dry, loose ground. Poor conditions for most vegetation.
  *
  * Effects (all values are multipliers; 1.0 = neutral):
- * @property {number} grassSpreadChance  Multiplier on grass spread probability. Default 1.3.
- * @property {number} treeSpreadChance   Multiplier on tree spread probability. Default 0.4.
- * @property {number} moveEnergyCost     Multiplier on animal movement energy cost. Default 1.2.
+ * @property {number} grassSpreadChance  Grass struggles in dry sand. Default 0.3.
+ * @property {number} treeSpreadChance   Trees rarely take root in sand. Default 0.15.
+ * @property {number} moveEnergyCost     Soft ground, slightly costly to cross. Default 1.2.
+ * @property {number} lifespanMultiplier Plants on sand dry out faster. Default 0.65.
  */
 export default {
   id: 'sand',
@@ -12,8 +13,9 @@ export default {
   name: 'Sand',
   color: '#c8a850',
   effects: {
-    grassSpreadChance: 1.3,
-    treeSpreadChance:  0.4,
-    moveEnergyCost:    1.2,
+    grassSpreadChance:  0.3,
+    treeSpreadChance:   0.15,
+    moveEnergyCost:     1.2,
+    lifespanMultiplier: 0.65,
   },
 };
