@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign of Life</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #111;
+      color: #ddd;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.2rem; letter-spacing: 0.1em; color: #aaa; }
+
+    #grid-canvas {
+      border: 1px solid #333;
+      display: block;
+    }
+
+    #status-line {
+      font-size: 0.85rem;
+      color: #888;
+      min-height: 1.2em;
+    }
+
+    #status-line .done { color: #6dbf6d; }
+
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+    }
+
+    button {
+      background: #222;
+      color: #ccc;
+      border: 1px solid #444;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    button:hover { background: #333; }
+    button:disabled { opacity: 0.4; cursor: default; }
+
+    label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+
+    input[type="text"] {
+      background: #1a1a1a;
+      color: #ccc;
+      border: 1px solid #444;
+      padding: 3px 6px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      width: 60px;
+    }
+
+    #rules-section { font-size: 0.9rem; }
+    #rules-section strong { display: block; margin-bottom: 6px; color: #888; }
+    #rules-list { display: flex; flex-direction: column; gap: 4px; }
+    #rules-list label { cursor: pointer; }
+    #rules-list label:hover { color: #fff; }
+
+    .rule-desc {
+      font-size: 0.75rem;
+      color: #555;
+      margin-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sign of Life</h1>
+
+  <canvas id="grid-canvas"></canvas>
+
+  <div id="status-line">Generation: 0 | Grass: 1 / 100</div>
+
+  <div id="controls">
+    <button id="btn-next">Next Tick</button>
+    <button id="btn-reset">Reset</button>
+    <label>
+      <input type="checkbox" id="toggle-auto" />
+      Auto
+    </label>
+    <label>
+      Delay (ms):
+      <input type="text" id="input-delay" value="500" />
+    </label>
+  </div>
+
+  <div id="rules-section">
+    <strong>Rules</strong>
+    <div id="rules-list"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
