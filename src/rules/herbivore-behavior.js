@@ -107,9 +107,8 @@ export default {
         }
 
         // 0b. Cornered — try to reproduce to preserve population.
-        if (energy >= e.reproThreshold && grid.reproCooldown[al][i] === 0 && targets.length > 0) {
+        if (grid.reproCooldown[al][i] === 0 && targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
-          grid.energy[al][i] -= e.reproCost;
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
@@ -152,11 +151,10 @@ export default {
           }
         }
 
-      // ── 2. Well-fed and ready to reproduce ───────────────────────────────────
-      } else if (energy >= e.reproThreshold && grid.reproCooldown[al][i] === 0) {
+      // ── 2. Ready to reproduce ────────────────────────────────────────────────
+      } else if (grid.reproCooldown[al][i] === 0) {
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
-          grid.energy[al][i] -= e.reproCost;
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
@@ -165,7 +163,7 @@ export default {
           events.log('birth', HERBIVORE, al);
         }
 
-      // ── 3. Well-fed but on cooldown: wander or idle ──────────────────────────
+      // ── 3. On cooldown: wander or idle ───────────────────────────────────────
       } else {
         if (rng() < 0.6 && targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];

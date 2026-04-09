@@ -97,12 +97,11 @@ export default {
           }
         }
 
-      // ── 2. Well-fed and ready to reproduce ───────────────────────────────────
-      } else if (energy >= e.reproThreshold && grid.reproCooldown[al][i] === 0) {
+      // ── 2. Ready to reproduce ────────────────────────────────────────────────
+      } else if (grid.reproCooldown[al][i] === 0) {
         const targets = emptyAnimalNeighbors(grid, x, y, al);
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
-          grid.energy[al][i] -= e.reproCost;
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, PREDATOR, al, ls, e.baseEnergy);
