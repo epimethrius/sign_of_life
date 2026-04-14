@@ -142,6 +142,32 @@ Encoded as base64url. `age[]` is not serialized (resets to 0 on load).
 
 ---
 
+## Development conventions
+
+### Default parameter changes
+Whenever a default value is changed in any rule file (`src/rules/*.js`) or in the
+UI (`index.html`), **`scripts/sim-config.json` must be updated to match** in the
+same commit.
+
+`sim-config.json` is the single source of truth for what "default run" means in
+the headless runner. Letting it drift from the source files makes batch results
+unrepresentative of what the browser simulation actually runs.
+
+Affected fields and where their defaults live:
+
+| `sim-config.json` key | Source |
+|---|---|
+| `terrain.water/rock/sand` | `index.html` — `#pct-water`, `#pct-rock`, `#pct-sand` input values |
+| `population.*` | `index.html` — `#pop-*` input values, scaled to the config `size` |
+| `rules.grassLifespan` | `src/rules/grass-spread.js` — `entity.baseLifespan` |
+| `rules.treeLifespan` | `src/rules/tree-spread.js` — `entity.baseLifespan` |
+| `rules.herbLifespan` | `src/rules/herbivore-behavior.js` — `entity.baseLifespan` |
+| `rules.predLifespan` | `src/rules/predator-behavior.js` — `entity.baseLifespan` |
+| `rules.herbCooldownDivisor` | `src/rules/herbivore-behavior.js` — `entity.reproCooldownDivisor` |
+| `rules.predCooldownDivisor` | `src/rules/predator-behavior.js` — `entity.reproCooldownDivisor` |
+
+---
+
 ## Milestones
 
 ### M1 — Grass Simulation ✓

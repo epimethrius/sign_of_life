@@ -10,20 +10,20 @@
   },
 
   "population": {
-    "grass":     null,
-    "tree":      null,
-    "lily":      null,
-    "herbivore": null,
-    "predator":  null
+    "grass":     20,
+    "tree":      12,
+    "lily":       8,
+    "herbivore": 16,
+    "predator":   8
   },
 
   "rules": {
-    "grassLifespan":       null,
-    "treeLifespan":        null,
-    "herbLifespan":        null,
-    "predLifespan":        null,
-    "herbCooldownDivisor": null,
-    "predCooldownDivisor": null
+    "grassLifespan":        4,
+    "treeLifespan":         6,
+    "herbLifespan":        15,
+    "predLifespan":        20,
+    "herbCooldownDivisor":  4,
+    "predCooldownDivisor":  4
   },
 
   "seed":   null,
