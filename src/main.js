@@ -1,3 +1,4 @@
+/* global __APP_VERSION__, __COMMIT_HASH__ */
 import {
   Grid,
   GRASS, TREE, HERBIVORE, PREDATOR,
@@ -562,6 +563,10 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('mouseleave', () => tooltipEl.classList.add('hidden'));
+
+// ── Version ───────────────────────────────────────────────────────────────────
+document.getElementById('app-version').textContent =
+  `v${__APP_VERSION__} · ${__COMMIT_HASH__}`;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 buildTagFilter();
