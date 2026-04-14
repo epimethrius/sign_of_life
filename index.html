@@ -75,6 +75,16 @@
     #status-line { font-size: 0.85rem; color: #777; min-height: 1.2em; }
     #stats-summary { font-size: 0.8rem; color: #3a7a4a; min-height: 1em; }
 
+    /* ── population chart ── */
+    #chart-canvas {
+      display: block;
+      width: 100%;
+      max-width: 640px;
+      height: 140px;
+      border: 1px solid #e8e8e8;
+      margin-top: 10px;
+    }
+
     #stats-wrapper {
       border-collapse: collapse;
       font-size: 0.8rem;
@@ -217,6 +227,7 @@
       </thead>
       <tbody id="stats-table"></tbody>
     </table>
+    <canvas id="chart-canvas"></canvas>
     <div id="stats-summary"></div>
   </section>
 

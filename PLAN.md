@@ -191,7 +191,7 @@ seed + share UI, rule registry with enable/disable.
 - [ ] Trait drift visualization
 
 ### M7 — Visualization Upgrades
-- [ ] Population chart (Canvas 2D line chart over StatsBuffer data)
+- [x] Population chart (Canvas 2D line chart over StatsBuffer data)
 - [ ] Zoom & pan
 - [ ] Cell age / energy overlay render mode
 - [ ] Pattern presets / saved worlds library

@@ -13,6 +13,7 @@ import { createRuleRegistry } from './rules/index.js';
 import { createRng, randomSeed, seedToHex, hexToSeed } from './rng.js';
 import { computeLifespan }    from './actions.js';
 import { encodeWorld, decodeWorld } from './serializer.js';
+import { ChartRenderer }           from './chart.js';
 import { generateTerrain }    from './terrain-gen.js';
 import { ALL_TERRAINS, terrainOf } from './terrains/index.js';
 
@@ -34,6 +35,7 @@ const rulesList     = document.getElementById('rules-list');
 const tagFilterEl   = document.getElementById('tag-filter');
 const legendEl      = document.getElementById('legend-content');
 const gridSizeEl    = document.getElementById('grid-size');
+const chartCanvas   = document.getElementById('chart-canvas');
 
 const terrainPctInputs = {
   water: document.getElementById('pct-water'),
@@ -67,6 +69,16 @@ _applyEntityIcons();
 const rules  = createRuleRegistry();
 const events = new EventLog();
 const stats  = new StatsBuffer(4, 1000); // series: 0=GRASS,1=TREE,2=HERBIVORE,3=PREDATOR
+
+const CHART_SERIES = [
+  { label: 'Grass',     color: '#5a9e4a' },
+  { label: 'Tree',      color: '#2d6e2d' },
+  { label: 'Herbivore', color: '#7b68cc' },
+  { label: 'Predator',  color: '#d45f2a' },
+];
+chartCanvas.width  = 640;
+chartCanvas.height = 140;
+const chartRenderer = new ChartRenderer(chartCanvas, CHART_SERIES);
 
 const ENTITY_KEYS = [
   { typeId: GRASS,     layer: LAYER_VEGETATION, label: 'Grass',     icon: '🌿', statsIdx: 0 },
@@ -262,6 +274,7 @@ function updateStatus(counts) {
     grid.countState(PREDATOR,  LAYER_ANIMALS),
   ];
   statusLine.textContent = `Generation: ${generation}`;
+  chartRenderer.draw(stats);
   statsTableEl.innerHTML = ENTITY_KEYS.map((k, i) => {
     const key    = _ekey(k);
     const pop    = c[i];
