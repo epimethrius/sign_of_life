@@ -1,23 +1,25 @@
 import { NUM_LAYERS } from './grid.js';
 
-const VERSION = 3;
+const VERSION = 4;
 
 // ── Encode ────────────────────────────────────────────────────────────────────
 //
-// Binary layout (version 3):
+// Binary layout (version 4):
 //   [0]      version    (uint8)
 //   [1..4]   seed       (uint32 big-endian)
 //   [5..6]   width      (uint16 big-endian)
 //   [7..8]   height     (uint16 big-endian)
 //   [9]      numLayers  (uint8)
 //   per layer:
-//     [w*h]      types    (uint8 per cell)
-//     [w*h * 2]  lifespan (uint16 big-endian per cell)
-//     [w*h * 4]  energy   (float32 big-endian per cell)
+//     [w*h]      types         (uint8 per cell)
+//     [w*h * 2]  lifespan      (uint16 big-endian per cell)
+//     [w*h * 4]  energy        (float32 big-endian per cell)
+//     [w*h * 2]  reproCooldown (uint16 big-endian per cell)
 //   [n]      numEnabledRules (uint8)
 //   [n+1..]  enabled rule indices (uint8 each)
 //
-// age[] is NOT serialized — at the initial state all entities have age = 0.
+// age[] is NOT serialized — resets to 0 on load (share codes represent a snapshot
+// that replays from the current state, not from tick 0).
 
 export function encodeWorld(grid, seed, ruleRegistry) {
   const { width, height, size } = grid;
@@ -27,7 +29,8 @@ export function encodeWorld(grid, seed, ruleRegistry) {
 
   const bytesPerLayer = size          // types (uint8)
                       + size * 2      // lifespan (uint16)
-                      + size * 4;     // energy (float32)
+                      + size * 4      // energy (float32)
+                      + size * 2;     // reproCooldown (uint16)
 
   const totalBytes =
     1 + 4 + 2 + 2 + 1                // header
@@ -45,12 +48,15 @@ export function encodeWorld(grid, seed, ruleRegistry) {
   buf[pos++] = NUM_LAYERS;
 
   for (let l = 0; l < NUM_LAYERS; l++) {
-    buf.set(grid.layers[l], pos);     pos += size;
+    buf.set(grid.layers[l], pos); pos += size;
     for (let i = 0; i < size; i++) {
-      view.setUint16(pos, grid.lifespan[l][i], false); pos += 2;
+      view.setUint16(pos, grid.lifespan[l][i], false);      pos += 2;
     }
     for (let i = 0; i < size; i++) {
-      view.setFloat32(pos, grid.energy[l][i], false);  pos += 4;
+      view.setFloat32(pos, grid.energy[l][i], false);       pos += 4;
+    }
+    for (let i = 0; i < size; i++) {
+      view.setUint16(pos, grid.reproCooldown[l][i], false); pos += 2;
     }
   }
 
@@ -76,27 +82,32 @@ export function decodeWorld(str) {
   const numLayers = buf[pos++];
   const size      = width * height;
 
-  const layers    = [];
-  const lifespans = [];
-  const energies  = [];
+  const layers        = [];
+  const lifespans     = [];
+  const energies      = [];
+  const reproCooldowns = [];
 
   for (let l = 0; l < numLayers; l++) {
     layers.push(buf.slice(pos, pos + size)); pos += size;
 
     const ls = new Uint16Array(size);
-    for (let i = 0; i < size; i++) { ls[i] = view.getUint16(pos, false); pos += 2; }
+    for (let i = 0; i < size; i++) { ls[i] = view.getUint16(pos, false);  pos += 2; }
     lifespans.push(ls);
 
     const en = new Float32Array(size);
     for (let i = 0; i < size; i++) { en[i] = view.getFloat32(pos, false); pos += 4; }
     energies.push(en);
+
+    const cd = new Uint16Array(size);
+    for (let i = 0; i < size; i++) { cd[i] = view.getUint16(pos, false);  pos += 2; }
+    reproCooldowns.push(cd);
   }
 
   const numEnabled = buf[pos++];
   const enabledRuleIndices = [];
   for (let i = 0; i < numEnabled; i++) enabledRuleIndices.push(buf[pos++]);
 
-  return { seed, width, height, layers, lifespans, energies, enabledRuleIndices };
+  return { seed, width, height, layers, lifespans, energies, reproCooldowns, enabledRuleIndices };
 }
 
 // ── Base64url helpers ─────────────────────────────────────────────────────────

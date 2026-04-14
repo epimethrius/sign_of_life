@@ -1,2 +1,0 @@
-1. We should tune the current values a bit, cause with the current parameters the end is always same: rabbits are hunted by foxes, then foxes are dying from the starvation,
-    then the grass is overtaken by the trees and this is the end. So: too high reproducing for the trees, reduce spawning, lifespan or both. 

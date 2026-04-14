@@ -326,8 +326,9 @@ btnLoad.addEventListener('click', () => {
     for (let l = 0; l < decoded.layers.length && l < grid.layers.length; l++) {
       grid.layers[l].set(decoded.layers[l]);
       grid.age[l].fill(0);
-      if (decoded.lifespans?.[l]) grid.lifespan[l].set(decoded.lifespans[l]);
-      if (decoded.energies?.[l])  grid.energy[l].set(decoded.energies[l]);
+      if (decoded.lifespans?.[l])      grid.lifespan[l].set(decoded.lifespans[l]);
+      if (decoded.energies?.[l])       grid.energy[l].set(decoded.energies[l]);
+      if (decoded.reproCooldowns?.[l]) grid.reproCooldown[l].set(decoded.reproCooldowns[l]);
     }
     rules.setEnabledByIndices(decoded.enabledRuleIndices);
     rebuildRuleUI();

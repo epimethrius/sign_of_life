@@ -7,7 +7,7 @@ A browser-based explorer for cellular automata and ecosystem simulations.
 ## Goals
 
 - Run locally in any browser with no install (`npx vite` or direct `index.html`)
-- Deployable to the web with a single build command (GitHub Pages / Netlify)
+- Deployable to the web with a single build command (GitHub Pages)
 - Pluggable rule engine: rules are independent JS modules, enabled/disabled by the user
 - Reproducible worlds: any simulation can be shared and replayed exactly
 - Simple visualization to start; complexity added later
@@ -21,7 +21,7 @@ A browser-based explorer for cellular automata and ecosystem simulations.
 | Runtime | Browser (Canvas 2D API) | Zero dependencies, universal |
 | Build / Dev server | [Vite](https://vitejs.dev/) | Zero-config, instant HMR, static output |
 | Language | Vanilla JS (ES modules) | No framework overhead; easy to evolve |
-| Deployment | GitHub Pages or Netlify | Static build output from `vite build` |
+| Deployment | GitHub Pages | Static build output from `vite build` |
 
 ---
 
@@ -30,23 +30,33 @@ A browser-based explorer for cellular automata and ecosystem simulations.
 ```
 sign_of_life/
 ├── index.html                   # Entry point — canvas + UI shell
+├── vite.config.js               # base='./', version/commit injection
+├── .github/workflows/deploy.yml # CI: build → GitHub Pages on push to main
 ├── src/
 │   ├── main.js                  # Wires grid, renderer, loop, registries, UI
 │   ├── grid.js                  # Multi-layer SoA grid, accessors, spread targets
-│   ├── renderer.js              # Canvas: terrain color fill + entity icon overlay
+│   ├── renderer.js              # Canvas: terrain fill + corner-aware icon overlay
 │   ├── loop.js                  # setTimeout tick loop, manual/auto mode, delay
 │   ├── rng.js                   # Seeded PRNG (mulberry32)
+│   ├── actions.js               # pickAction, computeLifespan, waterProximityBonus,
+│   │                            #   nearestFoodCell, emptyAnimalNeighbors
 │   ├── stats.js                 # Circular buffer for per-tick population snapshots
-│   ├── serializer.js            # World encode/decode → base64url share string
+│   ├── events.js                # Per-tick EventLog; rules call events.log(type,…)
+│   ├── serializer.js            # World encode/decode → base64url share string (v4)
+│   ├── terrain-gen.js           # Seed+expand BFS terrain generation
 │   ├── terrains/
-│   │   ├── index.js             # Terrain registry
-│   │   ├── soil.js
-│   │   ├── sand.js
-│   │   ├── water.js
-│   │   └── rock.js
+│   │   ├── index.js             # colorOf, effectOf, terrainOf registries
+│   │   ├── soil.js              # grassSpreadChance:1.0, treeSpreadChance:1.0, lifespanMult:1.0
+│   │   ├── sand.js              # grassSpreadChance:0.3, treeSpreadChance:0.15, lifespanMult:0.65
+│   │   ├── water.js             # blocks vegetation; aquaticGrassSpreadChance reserved
+│   │   └── rock.js              # grassSpreadChance:0.1, treeSpreadChance:0.15, lifespanMult:0.5
 │   └── rules/
-│       ├── index.js             # Rule registry: register, enable/disable, applyAll
-│       └── grass-spread.js
+│       ├── index.js             # Rule registry: ALL_RULES, enable/disable, applyAll
+│       ├── grass-spread.js      # SPREAD/IDLE; terrain + water proximity effects
+│       ├── tree-spread.js       # SPREAD/IDLE; replaces grass; terrain + water proximity
+│       ├── vegetation-aging.js  # Increments age; kills at lifespan
+│       ├── herbivore-behavior.js
+│       └── predator-behavior.js
 ├── package.json
 ├── PLAN.md
 └── LICENSE
@@ -54,217 +64,152 @@ sign_of_life/
 
 ---
 
-## Entity & Terrain Conventions
+## Grid — Structure of Arrays
 
-### Layers
+Each layer holds five parallel typed arrays, all indexed by `y * width + x`:
 
-| Index | Name | Contents | Changes |
-|---|---|---|---|
-| 0 | terrain | soil, sand, water, rock | set at init, static for now |
-| 1 | vegetation | grass, tree, bush, aquatic grass | slowly |
-| 2 | animals | herbivore, predator, bird | fast |
-| 3 | events | fire, flood, drought | transient |
+| Array | Type | Purpose |
+|---|---|---|
+| `layers[l]` | `Uint8Array` | entity typeId (0 = EMPTY) |
+| `age[l]` | `Uint16Array` | ticks alive (not serialized — resets on load) |
+| `lifespan[l]` | `Uint16Array` | max ticks before death (0 = immortal) |
+| `energy[l]` | `Float32Array` | energy level (animals only) |
+| `reproCooldown[l]` | `Uint16Array` | ticks until next reproduction allowed |
 
-Each layer is a `Uint8Array`. One entity maximum per layer per cell — no stacking.
-
-### Occupancy rules
-
-- **Vegetation layer:** one entity per cell. Entities replace each other (e.g. tree
-  overwrites grass). If the occupant is removed, the cell becomes empty and other
-  vegetation can claim it.
-- **Dependency:** rules declare what they consume. `needs: [GRASS]` = only grass
-  qualifies. `needs: [GRASS, TREE]` = either qualifies (OR logic).
-
-### Terrain effects
-
-Each terrain module exports an `effects` object — named numeric modifiers that rules
-query via `grid.terrainEffect(x, y, key)`. Default value is `1.0` (neutral) if the
-key is not present on a terrain type. Users can adjust effect values to change world
-behaviour without touching rule code.
-
-```js
-// Example — rock terrain
-export default {
-  id: 'rock', name: 'Rock', color: '#6b6b6b',
-  /**
-   * Effects applied to entities on this terrain.
-   * All values are multipliers (1.0 = neutral) unless noted.
-   *
-   * @property {number} grassSpreadChance  - multiplier on grass spread probability
-   * @property {number} treeSpreadChance   - multiplier on tree spread probability
-   * @property {number} moveEnergyCost     - multiplier on animal movement cost
-   */
-  effects: {
-    grassSpreadChance: 0.2,  // grass barely spreads on rock
-    treeSpreadChance:  0.5,
-    moveEnergyCost:    1.5,
-  }
-}
-```
-
-### Entity definition
-
-Each entity type (vegetation, animal, etc.) is described in the rule file that governs
-it, or in a shared constants module. Every entity must document:
-
-- `id` and `name` — stable identifier and display name
-- `icon` — emoji or unicode character rendered on canvas (e.g. `🌿`)
-- `layer` — which layer it lives on
-- `replaces` — list of entity states it can overwrite when spreading (empty = only EMPTY cells)
-- `needs` — list of entity states it requires to act (empty = no dependency)
-
-### Action dispatch
-
-Every rule that acts on individual cells uses weighted action selection via the seeded
-RNG. This applies to all entity types — vegetation and animals alike.
-
-```js
-// Rule actions definition
-actions: [
-  { action: 'SPREAD', weight: 0.7 },
-  { action: 'IDLE',   weight: 0.3 },
-]
-
-// Dispatcher (shared utility) — picks one action by weight using rng()
-function pickAction(actions, rng) { ... }
-```
-
-Rules implement a handler per action. IDLE always means "do nothing this tick."
-Weights are exposed as rule parameters, editable in UI.
+Adding a new per-entity property = one new array.
 
 ---
 
-## Architectural Decisions & Future Design
+## Layers
 
-### 1. Seeded PRNG ✓
+| Index | Constant | Contents |
+|---|---|---|
+| 0 | `LAYER_TERRAIN` | soil, sand, water, rock — static after init |
+| 1 | `LAYER_VEGETATION` | grass, tree — one entity per cell |
+| 2 | `LAYER_ANIMALS` | herbivore, predator — one entity per cell |
+| 3 | `LAYER_EVENTS` | reserved for fire, flood, drought |
 
-mulberry32, seeded per-simulation. Init RNG (cell placement) and simulation RNG
-(rules) are separate sub-seeds derived from the same master seed, so rule RNG always
-starts clean regardless of grid size.
+---
 
-### 2. World Sharing & State Serialization ✓
+## Terrain Effects System
 
-Binary layout (version + seed + dimensions + layer snapshots + rule config) encoded
-as base64url. Represents the *initial* state — loading a share code always starts
-from tick 0 and replays identically.
-For large grids: LZ-string compression to be added when needed.
+Each terrain module exports an `effects` object of named multipliers (default `1.0`).
+Rules query via `effectOf(typeId, key)`.
 
-### 3. Grid Structure — Structure of Arrays ✓
+| Key | Used by |
+|---|---|
+| `grassSpreadChance` | grass-spread rule |
+| `treeSpreadChance` | tree-spread rule |
+| `lifespanMultiplier` | spread rules (applied to new plant lifespan) |
+| `moveEnergyCost` | animal behavior rules (passive decay multiplier) |
+| `aquaticGrassSpreadChance` | reserved |
 
-Each property is a separate typed array (`Uint8Array` for types, `Float32Array` for
-energy, `Uint16Array` for age). Rules that only touch one property iterate one flat
-buffer — cache-friendly at any grid size. Adding a trait = one new array.
+---
 
-### 4. Multi-Layer Grid ✓
+## Animal Behaviour — Priority Order
 
-One `Uint8Array` per layer (terrain / vegetation / animals / events). Same cell index
-across all layers. Implemented. Rules declare which layers they read and write.
+Each tick, per animal:
 
-### 5. Terrain Generation — Seed + Expand
+1. **Survival** *(herbivore only)* — if a predator is within 2 cells (Chebyshev):
+   - Escape: move to neighbor that maximises Manhattan distance from threat
+   - If cornered: reproduce if cooldown = 0 and adjacent empty cell exists
+   - Otherwise: fall through
+2. **Seek food** — if energy < ⅔ × `reproThreshold`:
+   - Food at current cell → eat
+   - Food elsewhere → move toward nearest food (Manhattan-greedy, ties random)
+   - No food anywhere → wander randomly
+3. **Reproduce** — if cooldown = 0 and adjacent empty cell exists
+4. **Wander or idle** — 60% move randomly, 40% idle
 
-**Algorithm (chosen):** seed + expand BFS.
-1. Place M seed cells of a given terrain type, positions chosen by seeded RNG,
-   M proportional to the target percentage of total area.
-2. Expand each blob: repeatedly pick a random occupied cell and spread to one random
-   empty 4-neighbour, until the target cell count is reached.
-3. Process terrain types in priority order (water first, rock second, sand third,
-   remainder = soil).
+Newborns have their cooldown pre-set so they cannot reproduce immediately.
 
-Result: irregular, natural-looking clusters. Fully reproducible from seed.
-Percentages are set in UI per terrain type; remainder always goes to soil.
+---
 
-### 6. Statistics & History ✓
+## Serializer — VERSION 4
 
-Fixed-size circular buffer of `Int32Array`. Per-tick: one count per tracked species.
-Rules log interaction events (predation, starvation, reproduction) explicitly — not
-derivable from population snapshots alone.
-Post-simulation summary: peak, average growth, interaction counts.
-Charts: added later on top of the same data.
+```
+[version:1][seed:4][width:2][height:2][numLayers:1]
+per layer:
+  [types:    w*h × 1]   uint8
+  [lifespan: w*h × 2]   uint16 big-endian
+  [energy:   w*h × 4]   float32 big-endian
+  [reproCooldown: w*h × 2]  uint16 big-endian
+[numEnabledRules:1][ruleIndices:n]
+```
 
-### 7. Mutations & Adaptation (long-term perspective)
-
-After terrain + vegetation + animals are stable:
-
-- Each creature carries a trait vector (speed, aggression, heat tolerance, etc.)
-  in SoA `Float32Array` buffers — one array per trait, parallel to `types[]`
-- Reproduction: offspring = parent traits ± small seeded perturbation
-- Environmental pressure: terrain effects modulate energy cost, survival chance
-- Over generations, populations drift toward better-adapted trait profiles
-- Statistics layer surfaces which traits dominated and how fast adaptation occurred
-
-### 8. Visualization
-
-- **Terrain:** solid color fill per cell (defined in terrain module)
-- **Entities:** emoji/unicode icon centered over terrain fill (defined in rule/entity module)
-- **Legend:** sidebar listing all terrain types and active entity types with their
-  icon, color swatch, name, and one-line description; populated from registries
-- Future: color by trait value or cell age; zoom & pan; WebGL if canvas bottlenecks
+Encoded as base64url. `age[]` is not serialized (resets to 0 on load).
 
 ---
 
 ## Milestones
 
 ### M1 — Grass Simulation ✓
-
 10×10 field, single grass entity, spreads to random empty 4-neighbor each tick.
-Stops when field is full. Manual/auto tick, delay input, status line.
+Manual/auto tick, delay input, status line.
 
 ### M2 — Foundations ✓
-
-Seeded PRNG, multi-layer SoA grid, stats circular buffer, world serialization,
+Seeded PRNG, multi-layer SoA grid, stats circular buffer, world serialization (v1),
 seed + share UI, rule registry with enable/disable.
 
 ### M3 — Terrain, Trees & Richer Rules ✓
-
-- [x] `src/terrains/` — terrain registry + soil, sand, water, rock modules (with effects JSDoc)
-- [x] `src/actions.js` — `pickAction(actions, rng)` weighted dispatch utility
-- [x] `grid.spreadTargets(x, y, layer, replaceableStates[])` — replaces `emptyNeighbors`
-- [x] Terrain generation: seed+expand BFS, seeded RNG, configurable percentages
-- [x] Terrain percentage UI (inputs per type, auto-remainder to soil)
-- [x] `src/rules/grass-spread.js` — action dispatch (SPREAD / IDLE), terrain `grassSpreadChance`
-- [x] `src/rules/tree-spread.js` — slow spread, replaces grass, terrain `treeSpreadChance`
-- [x] Fixed stats delta display bug from M2
-- [x] Multi-series stats: grass (series 0) and tree (series 1) tracked separately
-- [x] Renderer: terrain color fill + entity icon overlay (two-pass draw)
-- [x] Legend sidebar: terrain swatches + entity icons with descriptions
-- [x] End condition: all non-water cells covered (not just full layer)
+- [x] Terrain registry: soil, sand, water, rock with effects
+- [x] Terrain generation: seed+expand BFS, configurable percentages, UI
+- [x] grass-spread, tree-spread rules with terrain effects
+- [x] Renderer: terrain color fill + entity icon overlay
+- [x] Legend sidebar
 
 ### M4 — Animals ✓
+- [x] EventLog; energy SoA; herbivore-behavior, predator-behavior rules
+- [x] Serializer v3: energy arrays
+- [x] Stats table: population, births, deaths, death ratio
+- [x] Auto-stop: no population change for 5 consecutive ticks
 
-- [x] `src/events.js` — EventLog; rules call `events.log(type, entityTypeId, layer)` each tick
-- [x] `energy[]` SoA (Float32Array per layer) added to Grid; `move()` transfers all state
-- [x] `HERBIVORE`, `PREDATOR` constants in grid.js
-- [x] `herbivore-behavior.js` — EAT/MOVE/REPRODUCE/IDLE actions; starves or ages to death
-- [x] `predator-behavior.js` — hunts herbivores via move-to-eat; same lifecycle
-- [x] All rules updated to `apply(grid, rng, events)`; spread + aging rules log births/deaths
-- [x] Renderer pass 3: animal icons centered; vegetation shrunk to corner when both present
-- [x] Serializer v3: adds `energy[]` arrays (Float32, 4 bytes/cell per layer)
-- [x] Stats table: population + lifetime births + deaths + death ratio per entity
-- [x] Auto-stop changed to: no population change for 5 consecutive ticks
+### M4+ — Ecosystem Refinements ✓
+*(added between M4 and M5)*
+- [x] Water proximity bonus: vegetation spread chance + lifespan boost near water
+- [x] Terrain `lifespanMultiplier`: plants on rock/sand die faster
+- [x] Vegetation and animal icons placed in opposite corners when co-occupying a cell
+- [x] Cell hover tooltip: terrain, vegetation (age/lifespan), animal (age/lifespan/energy/cooldown)
+- [x] Rule tags and category filter UI
+- [x] Section labels throughout the page
+- [x] Initial population inputs (per entity type), scaled when grid size changes
+- [x] Spawn-near-food constraint for animals at init
+- [x] Reproduction cooldown: `reproCooldown` SoA; newborns pre-seeded; no energy gate
+- [x] Priority-based animal AI replacing weighted random dispatch
+- [x] Herbivore escape/survival behavior (flee predators within 2 cells)
+- [x] Version + commit hash displayed under title (injected by Vite at build time)
+- [x] Serializer v4: adds `reproCooldown` arrays
 
 ### M5 — Interactivity & Sharing ✓
-
-- [x] Grid size selector (triggers re-init)
+- [x] Grid size selector (triggers re-init, scales population inputs)
 - [x] GitHub Actions → build → GitHub Pages
 
 ### M6 — Mutations & Adaptation
-
-- [ ] Heritable trait vectors in SoA `Float32Array`
-- [ ] Reproduction with seeded trait perturbation
-- [ ] Environmental pressure rules (terrain effects on energy cost)
-- [ ] Trait drift visualization: dominant trait values over generations
+- [ ] Heritable trait vectors in SoA `Float32Array` (e.g. speed, energyEfficiency)
+- [ ] Reproduction passes parent traits to offspring ± seeded perturbation
+- [ ] Environmental pressure: terrain effects modulate trait expression
+- [ ] Trait drift visualization
 
 ### M7 — Visualization Upgrades
-
-- [ ] Color by trait value or cell age gradient
+- [ ] Population chart (Canvas 2D line chart over StatsBuffer data)
 - [ ] Zoom & pan
+- [ ] Cell age / energy overlay render mode
 - [ ] Pattern presets / saved worlds library
 - [ ] WebGL renderer (if canvas becomes a bottleneck at large grid sizes)
 
 ---
 
-## Deferred / Out of Scope (for now)
+## Backlog / Ideas
+
+- Aquatic vegetation (uses reserved `aquaticGrassSpreadChance` effect in water.js)
+- Third animal type (scavenger/omnivore) to break the binary predator-prey collapse
+- Seasonal pressure events on LAYER_EVENTS (drought, cold snap)
+- LZ-string compression for share codes at large grid sizes
+- Mobile touch support
+
+---
+
+## Deferred / Out of Scope
 
 - Server-side computation
 - Multiplayer / live-shared state
-- Mobile touch optimization
