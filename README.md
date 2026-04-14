@@ -109,8 +109,8 @@ Edit this file to set your baseline parameters. CLI flags always override it.
     "treeLifespan":        null,
     "herbLifespan":        null,   // null = 15
     "predLifespan":        null,   // null = 20
-    "herbCooldownDivisor": null,   // reproduction cooldown = lifespan ÷ divisor  (default 4)
-    "predCooldownDivisor": null    // higher divisor → longer gap between births
+    "herbCooldownDivisor": null,   // reproduction cooldown = floor(lifespan ÷ divisor)
+    "predCooldownDivisor": null    // higher divisor → shorter cooldown → more breeds per lifetime
   },
 
   "seed":   null,    // null = random base seed; each run uses seed+i
@@ -168,8 +168,8 @@ Edit this file to set your baseline parameters. CLI flags always override it.
 | Vegetation collapse | Increase grass/tree lifespan |
 | Herbivore extinction | Increase herbivore lifespan or predator cooldown divisor |
 | Predator collapse | Increase predator lifespan or reduce cooldown divisor |
-| Predator overhunting | Increase predator cooldown divisor or reduce initial count |
-| Boom/bust oscillation | Slow predator reproduction (increase cooldown divisor) |
+| Predator overhunting | Decrease predator cooldown divisor (longer cooldown) or reduce initial count |
+| Boom/bust oscillation | Slow predator reproduction (decrease cooldown divisor) |
 | Vegetation sparse | Increase initial populations or reduce water % |
 
 ### Tuning workflow

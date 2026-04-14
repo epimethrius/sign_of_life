@@ -528,11 +528,15 @@ function buildDiagnostics(metrics, opts, pops, grassE, treeE, herbE, predE) {
   }
 
   // Herbivore extinction
+  // NOTE on cooldown divisor: cooldown = floor(lifespan / divisor).
+  // Higher divisor → shorter cooldown → more breeds per lifetime (faster growth).
+  // Lower divisor → longer cooldown → fewer breeds per lifetime (slower growth).
   if (sp.herb.survivalRate < 0.5) {
+    const slowerPCD = Math.max(1, pCD - 1);
     add('error',
       `Herbivore extinction too frequent — ${pct(sp.herb.survivalRate,0)} survival`,
       `Increase herbivore baseLifespan (${hLS}) → try ${hLS + 5}`,
-      `Increase predator reproCooldownDivisor (${pCD}) → try ${pCD + 1} (slower predator breeding)`,
+      `Decrease predator reproCooldownDivisor (${pCD}) → try ${slowerPCD} — cooldown ${Math.floor(pLS / pCD)} → ${Math.floor(pLS / slowerPCD)} ticks (fewer breeds per lifetime)`,
       eco.meanVegAnimalRatio < 2
         ? `Vegetation sparse (${eco.meanVegAnimalRatio.toFixed(1)}:1) — increase grass lifespan or reduce herbivore pop`
         : null
@@ -541,24 +545,27 @@ function buildDiagnostics(metrics, opts, pops, grassE, treeE, herbE, predE) {
     add('warn',
       `Herbivore survival marginal — ${pct(sp.herb.survivalRate,0)}`,
       `Consider increasing herbivore baseLifespan (${hLS}) → try ${hLS + 3}`,
-      `Or increase predator reproCooldownDivisor (${pCD}) → try ${pCD + 1}`
+      `Or decrease predator reproCooldownDivisor (${pCD}) → try ${Math.max(1, pCD - 1)} (fewer breeds per lifetime)`
     );
   }
 
   // Predator extinction (only flagged when prey is reasonably healthy)
   if (sp.pred.survivalRate < 0.4 && sp.herb.survivalRate >= 0.6) {
+    const fasterPCD = pCD + 1;
     add('warn',
       `Predator extinction frequent — ${pct(sp.pred.survivalRate,0)} despite adequate prey`,
       `Increase predator baseLifespan (${pLS}) → try ${pLS + 5}`,
-      `Reduce predator reproCooldownDivisor (${pCD}) → try ${Math.max(2, pCD - 1)} (faster breeding)`
+      `Increase predator reproCooldownDivisor (${pCD}) → try ${fasterPCD} — cooldown ${Math.floor(pLS / pCD)} → ${Math.floor(pLS / fasterPCD)} ticks (more breeds per lifetime)`
     );
   }
 
   // Predator overhunting (high pred:prey ratio)
   if (eco.meanPredPreyRatio > 0.40 && sp.herb.survivalRate < 0.6) {
+    const slowerPCD1 = Math.max(1, pCD - 1);
+    const slowerPCD2 = Math.max(1, pCD - 2);
     add('warn',
       `Predators overhunting — pred:prey ratio ${eco.meanPredPreyRatio.toFixed(2)} (target < 0.30)`,
-      `Increase predator reproCooldownDivisor (${pCD}) → try ${pCD + 1} or ${pCD + 2}`,
+      `Decrease predator reproCooldownDivisor (${pCD}) → try ${slowerPCD1} or ${slowerPCD2} (fewer breeds per lifetime)`,
       `Reduce predator initial population (currently ${pops.pred})`,
       `Increase herbivore baseLifespan (${hLS}) to give prey more time`
     );
@@ -566,9 +573,10 @@ function buildDiagnostics(metrics, opts, pops, grassE, treeE, herbE, predE) {
 
   // Boom/bust oscillation in herbivores
   if (sp.herb.meanCV > 0.80 && sp.herb.survivalRate >= 0.6) {
+    const slowerPCD = Math.max(1, pCD - 1);
     add('warn',
       `Herbivore boom/bust cycles — stability CV ${sp.herb.meanCV.toFixed(2)} (target < 0.60)`,
-      `Reduce predator reproduction speed — increase reproCooldownDivisor (${pCD}) → try ${pCD + 1}`,
+      `Slow predator breeding — decrease reproCooldownDivisor (${pCD}) → try ${slowerPCD} (cooldown ${Math.floor(pLS / pCD)} → ${Math.floor(pLS / slowerPCD)} ticks)`,
       `Or reduce predator baseLifespan (${pLS}) → try ${Math.max(8, pLS - 4)}`
     );
   }
