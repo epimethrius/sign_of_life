@@ -17,6 +17,7 @@ export const ROCK  = 4;
 // ── Vegetation states ──────────────────────────────────────────────────────────
 export const GRASS = 1;
 export const TREE  = 2;
+export const LILY  = 3;  // aquatic vegetation — spreads on water cells
 
 // ── Animal states ──────────────────────────────────────────────────────────────
 export const HERBIVORE = 1;

@@ -1,7 +1,7 @@
 /* global __APP_VERSION__, __COMMIT_HASH__ */
 import {
   Grid,
-  GRASS, TREE, HERBIVORE, PREDATOR,
+  GRASS, TREE, LILY, HERBIVORE, PREDATOR,
   SOIL, WATER, EMPTY,
   LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS,
 } from './grid.js';
@@ -45,10 +45,9 @@ const terrainPctInputs = {
 const soilPctDisplay = document.getElementById('soil-pct');
 
 const popInputs = {
-  [GRASS]:      document.getElementById('pop-grass'),
-  [TREE]:       document.getElementById('pop-tree'),
-  // Animal pops keyed differently since HERBIVORE=1 and GRASS=1 clash.
-  // Use string keys for the input map.
+  [GRASS]: document.getElementById('pop-grass'),
+  [TREE]:  document.getElementById('pop-tree'),
+  [LILY]:  document.getElementById('pop-lily'),
 };
 const popInputAnimals = {
   [HERBIVORE]: document.getElementById('pop-herbivore'),
@@ -68,11 +67,12 @@ let renderer = new Renderer(canvas, grid);
 _applyEntityIcons();
 const rules  = createRuleRegistry();
 const events = new EventLog();
-const stats  = new StatsBuffer(4, 1000); // series: 0=GRASS,1=TREE,2=HERBIVORE,3=PREDATOR
+const stats  = new StatsBuffer(5, 1000); // series: 0=GRASS,1=TREE,2=LILY,3=HERBIVORE,4=PREDATOR
 
 const CHART_SERIES = [
   { label: 'Grass',     color: '#5a9e4a' },
   { label: 'Tree',      color: '#2d6e2d' },
+  { label: 'Lily',      color: '#c44faa' },
   { label: 'Herbivore', color: '#7b68cc' },
   { label: 'Predator',  color: '#d45f2a' },
 ];
@@ -83,8 +83,9 @@ const chartRenderer = new ChartRenderer(chartCanvas, CHART_SERIES);
 const ENTITY_KEYS = [
   { typeId: GRASS,     layer: LAYER_VEGETATION, label: 'Grass',     icon: '🌿', statsIdx: 0 },
   { typeId: TREE,      layer: LAYER_VEGETATION, label: 'Tree',      icon: '🌲', statsIdx: 1 },
-  { typeId: HERBIVORE, layer: LAYER_ANIMALS,    label: 'Herbivore', icon: '🐇', statsIdx: 2 },
-  { typeId: PREDATOR,  layer: LAYER_ANIMALS,    label: 'Predator',  icon: '🦊', statsIdx: 3 },
+  { typeId: LILY,      layer: LAYER_VEGETATION, label: 'Lily',      icon: '🪷', statsIdx: 2 },
+  { typeId: HERBIVORE, layer: LAYER_ANIMALS,    label: 'Herbivore', icon: '🐇', statsIdx: 3 },
+  { typeId: PREDATOR,  layer: LAYER_ANIMALS,    label: 'Predator',  icon: '🦊', statsIdx: 4 },
 ];
 
 let lifetimeBirths = {};
@@ -98,7 +99,7 @@ function resetLifetimeCounts() {
 function _ekey(k) { return `${k.typeId}:${k.layer}`; }
 
 function _applyEntityIcons() {
-  renderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲']]));
+  renderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲'], [LILY, '🪷']]));
   renderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊']]));
 }
 
@@ -138,6 +139,7 @@ function init(seed) {
   // Seed vegetation (no food constraint needed for plants).
   _seedMany(GRASS, LAYER_VEGETATION, getPopCount(GRASS, LAYER_VEGETATION), null, initRng);
   _seedMany(TREE,  LAYER_VEGETATION, getPopCount(TREE,  LAYER_VEGETATION), null, initRng);
+  _seedAquatic(LILY, LAYER_VEGETATION, getPopCount(LILY, LAYER_VEGETATION), initRng);
 
   // Seed animals near their food source.
   const herbRule = rules.rules.find(r => r.entity?.typeId === HERBIVORE);
@@ -148,7 +150,7 @@ function init(seed) {
   generation      = 0;
   finished        = false;
   stableTicks     = 0;
-  prevTotalVeg    = grid.countState(GRASS, LAYER_VEGETATION) + grid.countState(TREE, LAYER_VEGETATION);
+  prevTotalVeg    = grid.countState(GRASS, LAYER_VEGETATION) + grid.countState(TREE, LAYER_VEGETATION) + grid.countState(LILY, LAYER_VEGETATION);
   prevTotalAnimal = grid.countState(HERBIVORE, LAYER_ANIMALS) + grid.countState(PREDATOR, LAYER_ANIMALS);
 
   stats.reset();
@@ -199,6 +201,29 @@ function _seedMany(entityType, layer, count, foodConstraint, rng) {
   }
 }
 
+function _seedAquatic(entityType, layer, count, rng) {
+  const rule = rules.rules.find(r => r.entity?.typeId === entityType && r.entity?.layer === layer);
+  const baseLifespan     = rule?.entity?.baseLifespan     ?? 0;
+  const lifespanVariance = rule?.entity?.lifespanVariance ?? 0;
+
+  const candidates = [];
+  for (let y = 0; y < grid.height; y++) {
+    for (let x = 0; x < grid.width; x++) {
+      if (grid.get(x, y, LAYER_TERRAIN) !== WATER) continue;
+      if (grid.get(x, y, layer) !== EMPTY) continue;
+      candidates.push([x, y]);
+    }
+  }
+
+  for (let n = 0; n < count && candidates.length > 0; n++) {
+    const idx = Math.floor(rng() * candidates.length);
+    const [x, y] = candidates[idx];
+    candidates.splice(idx, 1);
+    const ls = baseLifespan > 0 ? computeLifespan(baseLifespan, lifespanVariance, rng) : 0;
+    grid.place(x, y, entityType, layer, ls, 0);
+  }
+}
+
 function _validCells(layer) {
   const cells = [];
   for (let y = 0; y < grid.height; y++) {
@@ -241,13 +266,14 @@ function tick() {
   const counts = [
     grid.countState(GRASS,     LAYER_VEGETATION),
     grid.countState(TREE,      LAYER_VEGETATION),
+    grid.countState(LILY,      LAYER_VEGETATION),
     grid.countState(HERBIVORE, LAYER_ANIMALS),
     grid.countState(PREDATOR,  LAYER_ANIMALS),
   ];
   stats.push(counts);
 
-  const totalVeg    = counts[0] + counts[1];
-  const totalAnimal = counts[2] + counts[3];
+  const totalVeg    = counts[0] + counts[1] + counts[2];
+  const totalAnimal = counts[3] + counts[4];
   if (totalVeg === prevTotalVeg && totalAnimal === prevTotalAnimal) {
     if (++stableTicks >= 5) {
       finished = true;
@@ -270,6 +296,7 @@ function updateStatus(counts) {
   const c = counts ?? [
     grid.countState(GRASS,     LAYER_VEGETATION),
     grid.countState(TREE,      LAYER_VEGETATION),
+    grid.countState(LILY,      LAYER_VEGETATION),
     grid.countState(HERBIVORE, LAYER_ANIMALS),
     grid.countState(PREDATOR,  LAYER_ANIMALS),
   ];

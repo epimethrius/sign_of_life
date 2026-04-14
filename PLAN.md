@@ -54,6 +54,7 @@ sign_of_life/
 │       ├── index.js             # Rule registry: ALL_RULES, enable/disable, applyAll
 │       ├── grass-spread.js      # SPREAD/IDLE; terrain + water proximity effects
 │       ├── tree-spread.js       # SPREAD/IDLE; replaces grass; terrain + water proximity
+│       ├── lily-spread.js       # SPREAD/IDLE; aquatic — spreads on water cells only
 │       ├── vegetation-aging.js  # Increments age; kills at lifespan
 │       ├── herbivore-behavior.js
 │       └── predator-behavior.js
@@ -85,7 +86,7 @@ Adding a new per-entity property = one new array.
 | Index | Constant | Contents |
 |---|---|---|
 | 0 | `LAYER_TERRAIN` | soil, sand, water, rock — static after init |
-| 1 | `LAYER_VEGETATION` | grass, tree — one entity per cell |
+| 1 | `LAYER_VEGETATION` | grass, tree, lily — one entity per cell |
 | 2 | `LAYER_ANIMALS` | herbivore, predator — one entity per cell |
 | 3 | `LAYER_EVENTS` | reserved for fire, flood, drought |
 
@@ -102,7 +103,7 @@ Rules query via `effectOf(typeId, key)`.
 | `treeSpreadChance` | tree-spread rule |
 | `lifespanMultiplier` | spread rules (applied to new plant lifespan) |
 | `moveEnergyCost` | animal behavior rules (passive decay multiplier) |
-| `aquaticGrassSpreadChance` | reserved |
+| `aquaticGrassSpreadChance` | lily-spread rule (spread chance on water tiles) |
 
 ---
 
@@ -192,6 +193,7 @@ seed + share UI, rule registry with enable/disable.
 
 ### M7 — Visualization Upgrades
 - [x] Population chart (Canvas 2D line chart over StatsBuffer data)
+- [x] Aquatic vegetation: lily pads (LILY=3) spread across water cells; `_seedAquatic` seeds initial population on water tiles
 - [ ] Zoom & pan
 - [ ] Cell age / energy overlay render mode
 - [ ] Pattern presets / saved worlds library
@@ -201,7 +203,7 @@ seed + share UI, rule registry with enable/disable.
 
 ## Backlog / Ideas
 
-- Aquatic vegetation (uses reserved `aquaticGrassSpreadChance` effect in water.js)
+- Third animal type (scavenger/omnivore) to break the binary predator-prey collapse
 - Third animal type (scavenger/omnivore) to break the binary predator-prey collapse
 - Seasonal pressure events on LAYER_EVENTS (drought, cold snap)
 - LZ-string compression for share codes at large grid sizes
