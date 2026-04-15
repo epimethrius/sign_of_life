@@ -15,7 +15,7 @@ export default {
     name:            'Grass',
     icon:            '🌿',
     description:     'Fast-spreading ground cover. Can be replaced by trees.',
-    baseLifespan:    4,    // ticks — adjustable in UI
+    baseLifespan:    8,    // ticks — adjustable in UI
     lifespanVariance: 0.2, // ±20% — adjustable in UI
   },
 

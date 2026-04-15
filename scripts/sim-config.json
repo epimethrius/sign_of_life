@@ -13,17 +13,17 @@
     "grass":     20,
     "tree":      12,
     "lily":       8,
-    "herbivore": 24,
+    "herbivore": 16,
     "predator":   3,
-    "omnivore":   8
+    "omnivore":   6
   },
 
   "rules": {
-    "grassLifespan":        4,
-    "treeLifespan":         6,
-    "herbLifespan":        20,
-    "predLifespan":        30,
-    "herbCooldownDivisor":  3,
+    "grassLifespan":        8,
+    "treeLifespan":        10,
+    "herbLifespan":        15,
+    "predLifespan":        20,
+    "herbCooldownDivisor":  4,
     "predCooldownDivisor":  3
   },
 
