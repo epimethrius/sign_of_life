@@ -229,9 +229,8 @@ seed + share UI, rule registry with enable/disable.
 
 ## Backlog / Ideas
 
-- Third animal type (scavenger/omnivore) to break the binary predator-prey collapse
-- Third animal type (scavenger/omnivore) to break the binary predator-prey collapse
-- Seasonal pressure events on LAYER_EVENTS (drought, cold snap)
+- [x] Third animal type — **🦝 Omnivore** (`OMNIVORE=3`, `omnivore-behavior.js`). Eats grass/trees AND herbivores; hunted by predators. Provides predators an alternative prey source when herbivores are scarce, and keeps herbivore booms in check. FLEE_PROB=0.60 (bolder than herbivore).
+- [x] Seasonal pressure events — **Season Engine** (`season-engine.js`, `season-state.js`). 50-tick seasons (Spring/Summer/Autumn/Winter) cycling via `LAYER_EVENTS`. Effects: vegetation spread ±, lifespan ±, energy decay ×, repro threshold × — all applied per-tick via `getSeasonEffect(key)` imported in spread, aging, and animal behavior rules. Random events: **Drought** (Summer/Autumn, 0.6%/tick, 12-22 ticks) and **Cold Snap** (Autumn/Winter, 0.8%/tick, 8-18 ticks) stack on top of season effects. Season display shown in UI; resets per run in headless runner.
 - LZ-string compression for share codes at large grid sizes
 - Mobile touch support
 

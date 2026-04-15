@@ -1,6 +1,7 @@
 import { TREE, GRASS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
 import { pickAction, computeLifespan, waterProximityBonus } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
+import { getSeasonEffect } from '../season-state.js';
 
 export default {
   id: 'tree-spread',
@@ -40,10 +41,11 @@ export default {
     for (const [x, y] of cells) {
       if (pickAction(this.actions, rng) === 'IDLE') continue;
 
-      // Terrain + water proximity at source modulate spread probability.
+      // Terrain + water proximity + season modulate spread probability.
       const terrainChance = effectOf(grid.get(x, y, LAYER_TERRAIN), 'treeSpreadChance');
       const { spreadMult } = waterProximityBonus(grid, x, y);
-      if (rng() > Math.min(1, terrainChance * spreadMult)) continue;
+      const seasonMult = getSeasonEffect('treeSpread');
+      if (rng() > Math.min(1, terrainChance * spreadMult * seasonMult)) continue;
 
       // Trees can spread to empty cells OR replace grass,
       // but only where the target terrain permits trees.
@@ -55,7 +57,8 @@ export default {
       // Lifespan modified by target terrain quality and proximity to water.
       const terrainLM = effectOf(grid.get(nx, ny, LAYER_TERRAIN), 'lifespanMultiplier');
       const { lifespanMult } = waterProximityBonus(grid, nx, ny);
-      const ls = computeLifespan(baseLifespan * terrainLM * lifespanMult, lifespanVariance, rng);
+      const seasonLM  = getSeasonEffect('vegLifespanMult');
+      const ls = computeLifespan(baseLifespan * terrainLM * lifespanMult * seasonLM, lifespanVariance, rng);
       grid.place(nx, ny, TREE, LAYER_VEGETATION, ls);
       events.log('birth', TREE, LAYER_VEGETATION);
     }

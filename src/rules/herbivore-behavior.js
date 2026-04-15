@@ -1,6 +1,7 @@
 import { HERBIVORE, PREDATOR, GRASS, TREE, LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
 import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
+import { getSeasonEffect } from '../season-state.js';
 
 const FOOD_TYPES = [GRASS, TREE];
 const DANGER_RADIUS = 2; // Chebyshev distance at which a predator is detected
@@ -52,7 +53,9 @@ export default {
   apply(grid, rng, events, movedThisTick = new Set()) {
     const e = this.entity;
     const al = LAYER_ANIMALS;
-    const hungerThreshold = e.reproThreshold * (2 / 3);
+    const decayMult       = getSeasonEffect('energyDecay');
+    const reproThreshEff  = e.reproThreshold * getSeasonEffect('reproThreshMult');
+    const hungerThreshold = reproThreshEff * (2 / 3);
 
     const cells = [];
     for (let y = 0; y < grid.height; y++)
@@ -65,7 +68,7 @@ export default {
 
       // ── Passive energy decay ─────────────────────────────────────────────────
       const terrainCost = effectOf(grid.get(x, y, LAYER_TERRAIN), 'moveEnergyCost');
-      grid.energy[al][i] -= e.energyDecayPerTick * terrainCost;
+      grid.energy[al][i] -= e.energyDecayPerTick * terrainCost * decayMult;
 
       // ── Age & repro cooldown ─────────────────────────────────────────────────
       grid.age[al][i]++;
@@ -156,7 +159,7 @@ export default {
       // ── 2. Ready to reproduce ────────────────────────────────────────────────
       // Energy gate: must have enough reserves to raise offspring.
       // This is the feedback that prevents overshoot — animals won't breed when food is scarce.
-      } else if (grid.reproCooldown[al][i] === 0 && energy >= e.reproThreshold) {
+      } else if (grid.reproCooldown[al][i] === 0 && energy >= reproThreshEff) {
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);

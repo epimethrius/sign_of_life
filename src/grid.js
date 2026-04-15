@@ -22,6 +22,7 @@ export const LILY  = 3;  // aquatic vegetation — spreads on water cells
 // ── Animal states ──────────────────────────────────────────────────────────────
 export const HERBIVORE = 1;
 export const PREDATOR  = 2;
+export const OMNIVORE  = 3;  // eats plants AND herbivores; prey for predators
 
 // ── 4-directional neighbour offsets ───────────────────────────────────────────
 const DIRS_4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];

@@ -14,7 +14,8 @@
     "tree":      12,
     "lily":       8,
     "herbivore": 24,
-    "predator":   3
+    "predator":   3,
+    "omnivore":   8
   },
 
   "rules": {

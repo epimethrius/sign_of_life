@@ -1,6 +1,10 @@
-import { PREDATOR, HERBIVORE, LAYER_ANIMALS, LAYER_TERRAIN } from '../grid.js';
+import { PREDATOR, HERBIVORE, OMNIVORE, LAYER_ANIMALS, LAYER_TERRAIN } from '../grid.js';
 import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
+import { getSeasonEffect } from '../season-state.js';
+
+// Predators hunt both herbivores and omnivores.
+const PREY_TYPES = [HERBIVORE, OMNIVORE];
 
 export default {
   id: 'predator-behavior',
@@ -21,7 +25,7 @@ export default {
     reproThreshold:       20,
     reproCost:            10,
     reproCooldownDivisor: 4,
-    spawnNearFood: { layer: LAYER_ANIMALS, types: [HERBIVORE] },
+    spawnNearFood: { layer: LAYER_ANIMALS, types: PREY_TYPES },
   },
 
   name: 'Predator Behaviour',
@@ -30,7 +34,9 @@ export default {
   apply(grid, rng, events, movedThisTick = new Set()) {
     const e = this.entity;
     const al = LAYER_ANIMALS;
-    const hungerThreshold = e.reproThreshold * (2 / 3);
+    const decayMult      = getSeasonEffect('energyDecay');
+    const reproThreshEff = e.reproThreshold * getSeasonEffect('reproThreshMult');
+    const hungerThreshold = reproThreshEff * (2 / 3);
 
     const cells = [];
     for (let y = 0; y < grid.height; y++)
@@ -43,7 +49,7 @@ export default {
 
       // ── Passive energy decay ─────────────────────────────────────────────────
       const terrainCost = effectOf(grid.get(x, y, LAYER_TERRAIN), 'moveEnergyCost');
-      grid.energy[al][i] -= e.energyDecayPerTick * terrainCost;
+      grid.energy[al][i] -= e.energyDecayPerTick * terrainCost * decayMult;
 
       // ── Age & repro cooldown ─────────────────────────────────────────────────
       grid.age[al][i]++;
@@ -63,20 +69,21 @@ export default {
       // ── 1. Hungry: seek prey deterministically ───────────────────────────────
       if (energy < hungerThreshold) {
         // Check adjacent cells for prey first.
-        const prey = grid.spreadTargets(x, y, al, [HERBIVORE])
-          .filter(([nx, ny]) => grid.get(nx, ny, al) === HERBIVORE);
+        const prey = grid.spreadTargets(x, y, al, PREY_TYPES)
+          .filter(([nx, ny]) => PREY_TYPES.includes(grid.get(nx, ny, al)));
 
         if (prey.length > 0) {
           // Eat adjacent prey — move into its cell.
           const [nx, ny] = prey[Math.floor(rng() * prey.length)];
+          const preyType = grid.get(nx, ny, al);
           grid.energy[al][i] += e.energyFromHerbivore;
-          events.log('death-eaten', HERBIVORE, al);
+          events.log('death-eaten', preyType, al);
           events.log('eat-animal', PREDATOR, al);
           grid.move(x, y, nx, ny, al);
           movedThisTick.add(ny * grid.width + nx);
         } else {
           // Move toward nearest herbivore.
-          const nearest = nearestFoodCell(grid, x, y, al, [HERBIVORE]);
+          const nearest = nearestFoodCell(grid, x, y, al, PREY_TYPES);
           const targets = emptyAnimalNeighbors(grid, x, y, al);
           if (nearest && targets.length > 0) {
             const [fx, fy] = nearest;
@@ -100,7 +107,7 @@ export default {
       // ── 2. Ready to reproduce ────────────────────────────────────────────────
       // Energy gate: must have enough reserves to raise offspring.
       // This is the feedback that prevents overshoot — predators won't breed when prey is scarce.
-      } else if (grid.reproCooldown[al][i] === 0 && energy >= e.reproThreshold) {
+      } else if (grid.reproCooldown[al][i] === 0 && energy >= reproThreshEff) {
         const targets = emptyAnimalNeighbors(grid, x, y, al);
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];

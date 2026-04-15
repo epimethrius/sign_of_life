@@ -14,9 +14,10 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, resolve }    from 'path';
 import { fileURLToPath }       from 'url';
-import { Grid, GRASS, TREE, LILY, HERBIVORE, PREDATOR,
+import { Grid, GRASS, TREE, LILY, HERBIVORE, PREDATOR, OMNIVORE,
          WATER, EMPTY, LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS }
   from '../src/grid.js';
+import { resetSeasonState } from '../src/season-state.js';
 import { createRuleRegistry } from '../src/rules/index.js';
 import { generateTerrain }    from '../src/terrain-gen.js';
 import { createRng, randomSeed } from '../src/rng.js';
@@ -93,6 +94,7 @@ function parseCliRaw() {
     popLily:       int('pop-lily'),
     popHerbivore:  int('pop-herbivore'),
     popPredator:   int('pop-predator'),
+    popOmnivore:   int('pop-omnivore'),
     grassLifespan: int('grass-lifespan'),
     treeLifespan:  int('tree-lifespan'),
     herbLifespan:  int('herb-lifespan'),
@@ -134,6 +136,7 @@ function buildOpts(cli, cfg) {
     popLily:       first(cli.popLily,       cfg.population?.lily),
     popHerbivore:  first(cli.popHerbivore,  cfg.population?.herbivore),
     popPredator:   first(cli.popPredator,   cfg.population?.predator),
+    popOmnivore:   first(cli.popOmnivore,   cfg.population?.omnivore),
     grassLifespan: first(cli.grassLifespan, cfg.rules?.grassLifespan),
     treeLifespan:  first(cli.treeLifespan,  cfg.rules?.treeLifespan),
     herbLifespan:  first(cli.herbLifespan,  cfg.rules?.herbLifespan),
@@ -150,7 +153,7 @@ function parseArgs() { return buildOpts(parseCliRaw(), loadConfig()); }
 // ── Population scaling ────────────────────────────────────────────────────────
 
 // Baseline defaults match the UI on a 10×10 grid (100 cells).
-const BASE_POPS = { grass: 5, tree: 3, lily: 2, herb: 4, pred: 2 };
+const BASE_POPS = { grass: 5, tree: 3, lily: 2, herb: 4, pred: 2, omni: 3 };
 
 function scaledPops(opts) {
   const scale = (opts.size * opts.size) / 100;
@@ -160,6 +163,7 @@ function scaledPops(opts) {
     lily:  opts.popLily      ?? Math.max(1, Math.round(BASE_POPS.lily  * scale)),
     herb:  opts.popHerbivore ?? Math.max(1, Math.round(BASE_POPS.herb  * scale)),
     pred:  opts.popPredator  ?? Math.max(1, Math.round(BASE_POPS.pred  * scale)),
+    omni:  opts.popOmnivore  ?? Math.max(1, Math.round(BASE_POPS.omni  * scale)),
   };
 }
 
@@ -233,6 +237,7 @@ function seedWater(grid, rules, entityType, layer, count, rng) {
 // ── Single simulation run ─────────────────────────────────────────────────────
 
 function runSim(seed, opts, rules, pops) {
+  resetSeasonState();  // each run starts from Spring tick 0
   const grid    = new Grid(opts.size, opts.size);
   const initRng = createRng(seed);
   const simRng  = createRng(seed ^ 0x9E3779B9);
@@ -249,14 +254,16 @@ function runSim(seed, opts, rules, pops) {
   seedWater(grid, rules, LILY,      LAYER_VEGETATION, pops.lily,  initRng);
   seedLand (grid, rules, HERBIVORE, LAYER_ANIMALS,    pops.herb,  initRng);
   seedLand (grid, rules, PREDATOR,  LAYER_ANIMALS,    pops.pred,  initRng);
+  seedLand (grid, rules, OMNIVORE,  LAYER_ANIMALS,    pops.omni,  initRng);
 
-  // Population snapshot: [grass, tree, lily, herb, pred]
+  // Population snapshot: [grass, tree, lily, herb, pred, omni]
   const snap = () => [
     grid.countState(GRASS,     LAYER_VEGETATION),
     grid.countState(TREE,      LAYER_VEGETATION),
     grid.countState(LILY,      LAYER_VEGETATION),
     grid.countState(HERBIVORE, LAYER_ANIMALS),
     grid.countState(PREDATOR,  LAYER_ANIMALS),
+    grid.countState(OMNIVORE,  LAYER_ANIMALS),
   ];
 
   const history = [snap()];
@@ -279,13 +286,13 @@ function runSim(seed, opts, rules, pops) {
     prevSum = sum;
   }
 
-  return history; // array of [g, tr, li, h, p] per tick
+  return history; // array of [g, tr, li, h, p, o] per tick
 }
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 // Column indices in history snapshots
-const IDX = { grass: 0, tree: 1, lily: 2, herb: 3, pred: 4 };
+const IDX = { grass: 0, tree: 1, lily: 2, herb: 3, pred: 4, omni: 5 };
 const SPECIES = Object.keys(IDX);
 
 function mean(arr)   { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
@@ -347,14 +354,14 @@ function computeMetrics(allHistory) {
 
   for (const history of allHistory) {
     const final = history.at(-1);
-    const [g, tr, li, h, p] = final;
+    const [g, tr, li, h, p, o] = final;
     const veg = g + tr + li;
 
     runLengths.push(history.length - 1);
-    if (g > 0 && tr > 0 && li > 0 && h > 0 && p > 0) fullSurvival++;
-    if (h === 0 && p === 0)                             animalCollapse++;
-    if (h > 0 && p > 0) predPreyRatios.push(p / h);
-    if (h + p > 0)       vegAnimalRatios.push(veg / (h + p));
+    if (g > 0 && tr > 0 && li > 0 && h > 0 && p > 0 && o > 0) fullSurvival++;
+    if (h === 0 && p === 0 && o === 0)                           animalCollapse++;
+    if (h + o > 0 && p > 0) predPreyRatios.push(p / (h + o));
+    if (h + p + o > 0)       vegAnimalRatios.push(veg / (h + p + o));
   }
 
   return {
@@ -377,7 +384,7 @@ const C = {
   cyan:   '\x1b[36m',  gray:   '\x1b[90m',
 };
 
-const ICONS = { grass: '🌿', tree: '🌲', lily: '🪷', herb: '🐇', pred: '🦊' };
+const ICONS = { grass: '🌿', tree: '🌲', lily: '🪷', herb: '🐇', pred: '🦊', omni: '🦝' };
 
 function pct(r, pad = 4) { return `${Math.round(r * 100)}%`.padStart(pad); }
 function f1(n)   { return n == null || isNaN(n) ? '  —' : n.toFixed(1).padStart(5); }
@@ -408,7 +415,7 @@ function printReport(opts, pops, metrics, rules, elapsed, lines = null) {
   emit(`${C.bold}Sign of Life — Balance Runner${C.reset}`);
   emit(`${C.dim}${opts.runs} runs · ${opts.ticks} ticks/run · ${opts.size}×${opts.size} · ${(elapsed / 1000).toFixed(1)}s${C.reset}`);
   emit(`${C.dim}terrain  water=${opts.water}%  rock=${opts.rock}%  sand=${opts.sand}%  soil=${soil}%${C.reset}`);
-  emit(`${C.dim}pop init 🌿${pops.grass} 🌲${pops.tree} 🪷${pops.lily} 🐇${pops.herb} 🦊${pops.pred}${C.reset}`);
+  emit(`${C.dim}pop init 🌿${pops.grass} 🌲${pops.tree} 🪷${pops.lily} 🐇${pops.herb} 🦊${pops.pred} 🦝${pops.omni}${C.reset}`);
   emit(`${C.dim}lifespan 🌿${grassE?.baseLifespan ?? '?'} 🌲${treeE?.baseLifespan ?? '?'} 🐇${herbE?.baseLifespan ?? '?'} 🦊${predE?.baseLifespan ?? '?'}    cooldown÷ 🐇${herbE?.reproCooldownDivisor ?? '?'} 🦊${predE?.reproCooldownDivisor ?? '?'}${C.reset}`);
 
   // ── Species table ──
@@ -435,7 +442,7 @@ function printReport(opts, pops, metrics, rules, elapsed, lines = null) {
   emit(`${C.bold}  Ecosystem${C.reset}`);
   const fsCol  = survColor(eco.fullSurvivalRate);
   const acCol  = eco.animalCollapseRate <= 0.1 ? C.green : eco.animalCollapseRate <= 0.3 ? C.yellow : C.red;
-  emit(`    All 5 species at end:      ${fsCol}${pct(eco.fullSurvivalRate, 0)}${C.reset}`);
+  emit(`    All 6 species at end:      ${fsCol}${pct(eco.fullSurvivalRate, 0)}${C.reset}`);
   emit(`    Animal collapse (none left): ${acCol}${pct(eco.animalCollapseRate, 0)}${C.reset}`);
   emit(`    Median run length (ticks):  ${Math.round(eco.medianRunLength)}`);
   if (eco.meanPredPreyRatio > 0)
@@ -473,7 +480,7 @@ function writeOutput(path, lines, opts, pops, metrics, allHistory, baseSeed) {
         runs: opts.runs, ticks: opts.ticks, size: opts.size,
         terrain:    { water: opts.water, rock: opts.rock, sand: opts.sand },
         population: { grass: pops.grass, tree: pops.tree, lily: pops.lily,
-                      herbivore: pops.herb, predator: pops.pred },
+                      herbivore: pops.herb, predator: pops.pred, omnivore: pops.omni },
         rules: {
           grassLifespan:       opts.grassLifespan,
           treeLifespan:        opts.treeLifespan,
@@ -490,7 +497,7 @@ function writeOutput(path, lines, opts, pops, metrics, allHistory, baseSeed) {
         ticks:    history.length - 1,
         finalPop: { grass: history.at(-1)[0], tree: history.at(-1)[1],
                     lily:  history.at(-1)[2], herbivore: history.at(-1)[3],
-                    predator: history.at(-1)[4] },
+                    predator: history.at(-1)[4], omnivore: history.at(-1)[5] },
       })),
     };
     writeFileSync(path, JSON.stringify(payload, null, 2), 'utf8');

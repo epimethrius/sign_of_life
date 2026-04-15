@@ -230,7 +230,7 @@
     .tt-layer { color: #aaa; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
     .tt-empty { color: #ccc; }
   </style>
-  <script type="module" crossorigin src="./assets/index-CZ1CVSGg.js"></script>
+  <script type="module" crossorigin src="./assets/index-CHZiKZkX.js"></script>
 </head>
 <body>
   <h1>Sign of Life</h1>
@@ -246,6 +246,8 @@
           <canvas id="grid-canvas"></canvas>
           <canvas id="grid-icons"></canvas>
         </div>
+        <!-- Season / weather indicator -->
+        <div id="season-display" style="font-size:0.82rem;color:#666;min-height:1.2em;margin-top:4px;"></div>
         <!-- Overlay mode selector -->
         <div id="overlay-row">
           <span class="inline-label">Overlay</span>
@@ -333,6 +335,7 @@
         <label>🪷 Lily <input type="number" class="pop-n" id="pop-lily" value="2" min="0" max="99" /></label>
         <label>🐇 Herbivore <input type="number" class="pop-n" id="pop-herbivore" value="4" min="0" max="99" /></label>
         <label>🦊 Predator <input type="number" class="pop-n" id="pop-predator" value="2" min="0" max="99" /></label>
+        <label>🦝 Omnivore <input type="number" class="pop-n" id="pop-omnivore" value="3" min="0" max="99" /></label>
       </div>
     </div>
 

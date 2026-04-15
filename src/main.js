@@ -1,10 +1,11 @@
 /* global __APP_VERSION__, __COMMIT_HASH__ */
 import {
   Grid,
-  GRASS, TREE, LILY, HERBIVORE, PREDATOR,
+  GRASS, TREE, LILY, HERBIVORE, PREDATOR, OMNIVORE,
   SOIL, WATER, EMPTY,
   LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS,
 } from './grid.js';
+import { seasonState, resetSeasonState, SEASON_INFO, EVENT_INFO } from './season-state.js';
 import { WebGLRenderer, OVERLAY_NORMAL, OVERLAY_AGE, OVERLAY_ENERGY } from './renderer-webgl.js';
 import { Renderer }           from './renderer.js';
 import { Loop }               from './loop.js';
@@ -59,7 +60,9 @@ const popInputs = {
 const popInputAnimals = {
   [HERBIVORE]: document.getElementById('pop-herbivore'),
   [PREDATOR]:  document.getElementById('pop-predator'),
+  [OMNIVORE]:  document.getElementById('pop-omnivore'),
 };
+const seasonDisplayEl = document.getElementById('season-display');
 
 function getPopCount(typeId, layer) {
   const inp = layer === LAYER_VEGETATION
@@ -82,7 +85,7 @@ function draw() {
 }
 const rules  = createRuleRegistry();
 const events = new EventLog();
-const stats  = new StatsBuffer(5, 1000); // series: 0=GRASS,1=TREE,2=LILY,3=HERBIVORE,4=PREDATOR
+const stats  = new StatsBuffer(6, 1000); // 0=GRASS,1=TREE,2=LILY,3=HERBIVORE,4=PREDATOR,5=OMNIVORE
 
 const CHART_SERIES = [
   { label: 'Grass',     color: '#5a9e4a' },
@@ -90,6 +93,7 @@ const CHART_SERIES = [
   { label: 'Lily',      color: '#c44faa' },
   { label: 'Herbivore', color: '#7b68cc' },
   { label: 'Predator',  color: '#d45f2a' },
+  { label: 'Omnivore',  color: '#a0622a' },
 ];
 chartCanvas.width  = 640;
 chartCanvas.height = 140;
@@ -101,6 +105,7 @@ const ENTITY_KEYS = [
   { typeId: LILY,      layer: LAYER_VEGETATION, label: 'Lily',      icon: '🪷', statsIdx: 2 },
   { typeId: HERBIVORE, layer: LAYER_ANIMALS,    label: 'Herbivore', icon: '🐇', statsIdx: 3 },
   { typeId: PREDATOR,  layer: LAYER_ANIMALS,    label: 'Predator',  icon: '🦊', statsIdx: 4 },
+  { typeId: OMNIVORE,  layer: LAYER_ANIMALS,    label: 'Omnivore',  icon: '🦝', statsIdx: 5 },
 ];
 
 let lifetimeBirths = {};
@@ -115,7 +120,7 @@ function _ekey(k) { return `${k.typeId}:${k.layer}`; }
 
 function _applyEntityIcons() {
   iconRenderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲'], [LILY, '🪷']]));
-  iconRenderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊']]));
+  iconRenderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊'], [OMNIVORE, '🦝']]));
 }
 
 let simRng;
@@ -159,14 +164,18 @@ function init(seed) {
   // Seed animals near their food source.
   const herbRule = rules.rules.find(r => r.entity?.typeId === HERBIVORE);
   const predRule = rules.rules.find(r => r.entity?.typeId === PREDATOR);
+  const omniRule = rules.rules.find(r => r.entity?.typeId === OMNIVORE);
   _seedMany(HERBIVORE, LAYER_ANIMALS, getPopCount(HERBIVORE, LAYER_ANIMALS), herbRule?.entity?.spawnNearFood ?? null, initRng);
   _seedMany(PREDATOR,  LAYER_ANIMALS, getPopCount(PREDATOR,  LAYER_ANIMALS), predRule?.entity?.spawnNearFood ?? null, initRng);
+  _seedMany(OMNIVORE,  LAYER_ANIMALS, getPopCount(OMNIVORE,  LAYER_ANIMALS), omniRule?.entity?.spawnNearFood ?? null, initRng);
+
+  resetSeasonState();
 
   generation      = 0;
   finished        = false;
   stableTicks     = 0;
   prevTotalVeg    = grid.countState(GRASS, LAYER_VEGETATION) + grid.countState(TREE, LAYER_VEGETATION) + grid.countState(LILY, LAYER_VEGETATION);
-  prevTotalAnimal = grid.countState(HERBIVORE, LAYER_ANIMALS) + grid.countState(PREDATOR, LAYER_ANIMALS);
+  prevTotalAnimal = grid.countState(HERBIVORE, LAYER_ANIMALS) + grid.countState(PREDATOR, LAYER_ANIMALS) + grid.countState(OMNIVORE, LAYER_ANIMALS);
 
   stats.reset();
   events.reset();
@@ -284,11 +293,12 @@ function tick() {
     grid.countState(LILY,      LAYER_VEGETATION),
     grid.countState(HERBIVORE, LAYER_ANIMALS),
     grid.countState(PREDATOR,  LAYER_ANIMALS),
+    grid.countState(OMNIVORE,  LAYER_ANIMALS),
   ];
   stats.push(counts);
 
   const totalVeg    = counts[0] + counts[1] + counts[2];
-  const totalAnimal = counts[3] + counts[4];
+  const totalAnimal = counts[3] + counts[4] + counts[5];
   if (totalVeg === prevTotalVeg && totalAnimal === prevTotalAnimal) {
     if (++stableTicks >= 5) {
       finished = true;
@@ -314,8 +324,18 @@ function updateStatus(counts) {
     grid.countState(LILY,      LAYER_VEGETATION),
     grid.countState(HERBIVORE, LAYER_ANIMALS),
     grid.countState(PREDATOR,  LAYER_ANIMALS),
+    grid.countState(OMNIVORE,  LAYER_ANIMALS),
   ];
   statusLine.textContent = `Generation: ${generation}`;
+
+  // Season / event indicator.
+  const si = SEASON_INFO[seasonState.season];
+  let seasonText = `${si.icon} ${si.name}`;
+  if (seasonState.event) {
+    const ei = EVENT_INFO[seasonState.event];
+    seasonText += `  ·  ${ei.icon} ${ei.name} (${seasonState.eventLeft} ticks)`;
+  }
+  if (seasonDisplayEl) seasonDisplayEl.textContent = seasonText;
   chartRenderer.draw(stats);
   statsTableEl.innerHTML = ENTITY_KEYS.map((k, i) => {
     const key    = _ekey(k);
