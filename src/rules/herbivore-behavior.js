@@ -3,7 +3,8 @@ import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actio
 import { effectOf } from '../terrains/index.js';
 
 const FOOD_TYPES = [GRASS, TREE];
-const DANGER_RADIUS = 2; // Chebyshev distance at which a predator triggers survival mode
+const DANGER_RADIUS = 2; // Chebyshev distance at which a predator is detected
+const FLEE_PROB     = 0.75; // Probability of actually fleeing when a threat is detected
 
 /** Returns [x, y] of the nearest predator within DANGER_RADIUS, or null. */
 function nearestThreat(grid, x, y) {
@@ -96,9 +97,9 @@ export default {
           }
           const escapeCandidates = targets.filter(([nx, ny]) =>
             Math.abs(nx - tx) + Math.abs(ny - ty) === bestDist);
-          // Only escape if it actually increases distance from threat.
+          // Only escape if it actually increases distance from threat, and flee reaction triggers.
           const currentDist = Math.abs(x - tx) + Math.abs(y - ty);
-          if (bestDist > currentDist) {
+          if (bestDist > currentDist && rng() < FLEE_PROB) {
             const [nx, ny] = escapeCandidates[Math.floor(rng() * escapeCandidates.length)];
             grid.move(x, y, nx, ny, al);
             movedThisTick.add(ny * grid.width + nx);
@@ -112,6 +113,7 @@ export default {
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
+          grid.energy[al][i] -= e.reproCost;
           grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
           grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
           events.log('birth', HERBIVORE, al);
@@ -152,12 +154,15 @@ export default {
         }
 
       // ── 2. Ready to reproduce ────────────────────────────────────────────────
-      } else if (grid.reproCooldown[al][i] === 0) {
+      // Energy gate: must have enough reserves to raise offspring.
+      // This is the feedback that prevents overshoot — animals won't breed when food is scarce.
+      } else if (grid.reproCooldown[al][i] === 0 && energy >= e.reproThreshold) {
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
+          grid.energy[al][i] -= e.reproCost;
           grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
           grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
           events.log('birth', HERBIVORE, al);

@@ -5,6 +5,7 @@ import {
   SOIL, WATER, EMPTY,
   LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS,
 } from './grid.js';
+import { WebGLRenderer, OVERLAY_NORMAL, OVERLAY_AGE, OVERLAY_ENERGY } from './renderer-webgl.js';
 import { Renderer }           from './renderer.js';
 import { Loop }               from './loop.js';
 import { StatsBuffer }        from './stats.js';
@@ -18,7 +19,8 @@ import { generateTerrain }    from './terrain-gen.js';
 import { ALL_TERRAINS, terrainOf } from './terrains/index.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
-const canvas        = document.getElementById('grid-canvas');
+const canvas        = document.getElementById('grid-canvas');  // WebGL terrain
+const iconCanvas    = document.getElementById('grid-icons');   // 2D emoji overlay
 const statusLine    = document.getElementById('status-line');
 const statsTableEl  = document.getElementById('stats-table');
 const statsSumEl    = document.getElementById('stats-summary');
@@ -36,6 +38,11 @@ const tagFilterEl   = document.getElementById('tag-filter');
 const legendEl      = document.getElementById('legend-content');
 const gridSizeEl    = document.getElementById('grid-size');
 const chartCanvas   = document.getElementById('chart-canvas');
+const overlayModeEl = document.getElementById('overlay-mode');
+const overlayKeyEl  = document.getElementById('overlay-key');
+const keySwatch     = document.getElementById('key-swatch');
+const keyLo         = document.getElementById('key-lo');
+const keyHi         = document.getElementById('key-hi');
 
 const terrainPctInputs = {
   water: document.getElementById('pct-water'),
@@ -62,9 +69,17 @@ function getPopCount(typeId, layer) {
 }
 
 // ── Core objects ──────────────────────────────────────────────────────────────
-let grid     = new Grid(10, 10);
-let renderer = new Renderer(canvas, grid);
+let grid          = new Grid(10, 10);
+let webglRenderer = new WebGLRenderer(canvas, grid);
+let iconRenderer  = new Renderer(iconCanvas, grid);
 _applyEntityIcons();
+
+let overlayMode = OVERLAY_NORMAL;
+
+function draw() {
+  webglRenderer.draw(overlayMode);
+  iconRenderer.draw();
+}
 const rules  = createRuleRegistry();
 const events = new EventLog();
 const stats  = new StatsBuffer(5, 1000); // series: 0=GRASS,1=TREE,2=LILY,3=HERBIVORE,4=PREDATOR
@@ -99,8 +114,8 @@ function resetLifetimeCounts() {
 function _ekey(k) { return `${k.typeId}:${k.layer}`; }
 
 function _applyEntityIcons() {
-  renderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲'], [LILY, '🪷']]));
-  renderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊']]));
+  iconRenderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲'], [LILY, '🪷']]));
+  iconRenderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊']]));
 }
 
 let simRng;
@@ -166,7 +181,7 @@ function init(seed) {
   btnNext.disabled   = false;
 
   updateStatus();
-  renderer.draw();
+  draw();
 }
 
 /**
@@ -289,7 +304,7 @@ function tick() {
   prevTotalAnimal = totalAnimal;
 
   updateStatus(counts);
-  renderer.draw();
+  draw();
 }
 
 function updateStatus(counts) {
@@ -328,6 +343,45 @@ inputDelay.addEventListener('change', () => {
   const ms = parseInt(inputDelay.value, 10);
   if (!isNaN(ms) && ms > 0) loop.setDelay(ms);
 });
+
+// ── Overlay mode ──────────────────────────────────────────────────────────────
+const OVERLAY_META = {
+  [OVERLAY_NORMAL]: null,
+  [OVERLAY_AGE]:    { lo: 'young', hi: 'old',    gradient: 'linear-gradient(to right, #385ced, #2ec82e, #e52626)' },
+  [OVERLAY_ENERGY]: { lo: 'critical', hi: 'full', gradient: 'linear-gradient(to right, #e01a1a, #f2cc1a, #1acc33)' },
+};
+
+function updateOverlayKey() {
+  const meta = OVERLAY_META[overlayMode];
+  if (!meta) {
+    overlayKeyEl.classList.remove('visible');
+    return;
+  }
+  overlayKeyEl.classList.add('visible');
+  keyLo.textContent = meta.lo;
+  keyHi.textContent = meta.hi;
+  // Draw gradient on the key swatch canvas.
+  const ctx = keySwatch.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, keySwatch.width, 0);
+  if (overlayMode === OVERLAY_AGE) {
+    grad.addColorStop(0,    '#385ced');
+    grad.addColorStop(0.5,  '#2ec82e');
+    grad.addColorStop(1.0,  '#e52626');
+  } else {
+    grad.addColorStop(0,    '#e01a1a');
+    grad.addColorStop(0.4,  '#f2cc1a');
+    grad.addColorStop(1.0,  '#1acc33');
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, keySwatch.width, keySwatch.height);
+}
+
+overlayModeEl.addEventListener('change', () => {
+  overlayMode = parseInt(overlayModeEl.value, 10);
+  updateOverlayKey();
+  draw();
+});
+
 btnNewSeed.addEventListener('click', () => init());
 gridSizeEl.addEventListener('change', () => {
   const size    = parseInt(gridSizeEl.value, 10);
@@ -342,8 +396,9 @@ gridSizeEl.addEventListener('change', () => {
   }
 
   loop.stop();
-  grid     = new Grid(size, size);
-  renderer = new Renderer(canvas, grid);
+  grid = new Grid(size, size);
+  webglRenderer.resize(grid);
+  iconRenderer.resize(grid);
   _applyEntityIcons();
   init();
 });
@@ -387,7 +442,7 @@ btnLoad.addEventListener('click', () => {
     toggleAuto.checked = false;
     btnNext.disabled   = false;
     updateStatus();
-    renderer.draw();
+    draw();
   } catch (err) {
     alert(`Failed to load world: ${err.message}`);
   }

@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-04-15T09:23:41.735Z",
+  "config": {
+    "runs": 1,
+    "ticks": 80,
+    "size": 20,
+    "terrain": {
+      "water": 15,
+      "rock": 10,
+      "sand": 10
+    },
+    "population": {
+      "grass": 20,
+      "tree": 12,
+      "lily": 8,
+      "herbivore": 24,
+      "predator": 3
+    },
+    "rules": {
+      "grassLifespan": 4,
+      "treeLifespan": 6,
+      "herbLifespan": 20,
+      "predLifespan": 30,
+      "herbCooldownDivisor": 3,
+      "predCooldownDivisor": 5
+    },
+    "baseSeed": "deadbeef"
+  },
+  "metrics": {
+    "species": {
+      "grass": {
+        "survivalRate": 1,
+        "medianExtTick": null,
+        "meanFinalPop": 106,
+        "meanPeakPop": 187,
+        "meanCV": 0.09722011447546011
+      },
+      "tree": {
+        "survivalRate": 1,
+        "medianExtTick": null,
+        "meanFinalPop": 86,
+        "meanPeakPop": 87,
+        "meanCV": 0.0987098998018344
+      },
+      "lily": {
+        "survivalRate": 1,
+        "medianExtTick": null,
+        "meanFinalPop": 43,
+        "meanPeakPop": 46,
+        "meanCV": 0.061984482118118196
+      },
+      "herb": {
+        "survivalRate": 1,
+        "medianExtTick": null,
+        "meanFinalPop": 33,
+        "meanPeakPop": 41,
+        "meanCV": 0.08279242041362496
+      },
+      "pred": {
+        "survivalRate": 0,
+        "medianExtTick": 39,
+        "meanFinalPop": 0,
+        "meanPeakPop": 13,
+        "meanCV": 0
+      }
+    },
+    "ecosystem": {
+      "fullSurvivalRate": 0,
+      "animalCollapseRate": 0,
+      "meanPredPreyRatio": 0,
+      "meanVegAnimalRatio": 7.121212121212121,
+      "medianRunLength": 80
+    }
+  },
+  "runs": [
+    {
+      "seed": "deadbeef",
+      "ticks": 80,
+      "finalPop": {
+        "grass": 106,
+        "tree": 86,
+        "lily": 43,
+        "herbivore": 33,
+        "predator": 0
+      }
+    }
+  ]
+}

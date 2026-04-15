@@ -15,9 +15,9 @@ export default {
     description:          'Hunts herbivores. Dies of age or starvation.',
     baseLifespan:         20,
     lifespanVariance:     0.2,
-    baseEnergy:           15,
+    baseEnergy:           25,
     energyDecayPerTick:   1.2,
-    energyFromHerbivore:  12,
+    energyFromHerbivore:  15,
     reproThreshold:       20,
     reproCost:            10,
     reproCooldownDivisor: 4,
@@ -98,13 +98,16 @@ export default {
         }
 
       // ── 2. Ready to reproduce ────────────────────────────────────────────────
-      } else if (grid.reproCooldown[al][i] === 0) {
+      // Energy gate: must have enough reserves to raise offspring.
+      // This is the feedback that prevents overshoot — predators won't breed when prey is scarce.
+      } else if (grid.reproCooldown[al][i] === 0 && energy >= e.reproThreshold) {
         const targets = emptyAnimalNeighbors(grid, x, y, al);
         if (targets.length > 0) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, PREDATOR, al, ls, e.baseEnergy);
+          grid.energy[al][i] -= e.reproCost;
           // Parent cooldown.
           grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
           // Newborn starts on cooldown.

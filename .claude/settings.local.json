@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/sim-runner.mjs)",
+      "Bash(grep -n \"moveEnergyCost\" e:/WORK/M_V/SoL/sign_of_life/src/terrains/*.js)",
+      "Bash(node scripts/sim-runner.mjs --runs=1 --ticks=60 --seed=deadbeef --output=/tmp/debug.json)",
+      "Bash(node -e ':*)",
+      "Bash(node scripts/sim-runner.mjs --runs=1 --ticks=80 --seed=deadbeef --output=scripts/debug.json)",
+      "Bash(node -e \"const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('scripts/debug.json'\\)\\); console.log\\(JSON.stringify\\(Object.keys\\(d\\)\\)\\); console.log\\(JSON.stringify\\(Object.keys\\(d.runs[0]\\)\\)\\)\")",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5174/)"
+    ]
+  }
+}

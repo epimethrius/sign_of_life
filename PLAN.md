@@ -220,10 +220,10 @@ seed + share UI, rule registry with enable/disable.
 ### M7 — Visualization Upgrades
 - [x] Population chart (Canvas 2D line chart over StatsBuffer data)
 - [x] Aquatic vegetation: lily pads (LILY=3) spread across water cells; `_seedAquatic` seeds initial population on water tiles
+- [x] WebGL renderer: terrain + overlay rendered by a GLSL fragment shader (`renderer-webgl.js`); emoji icons remain on a transparent 2D canvas overlay (`renderer.js`). One full-screen quad draw call per tick; per-cell data packed into a small RGBA texture.
+- [x] Cell age / energy overlay render mode: `OVERLAY_AGE` (blue→green→red heat-map on age/lifespan ratio) and `OVERLAY_ENERGY` (red→yellow→green on animal energy). Selector + colour key added to the Map section. Mode is driven as a shader uniform — no extra JS per-cell cost.
 - [ ] Zoom & pan
-- [ ] Cell age / energy overlay render mode
 - [ ] Pattern presets / saved worlds library
-- [ ] WebGL renderer (if canvas becomes a bottleneck at large grid sizes)
 
 ---
 

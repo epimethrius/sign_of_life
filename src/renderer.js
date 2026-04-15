@@ -1,22 +1,28 @@
-import { LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS, EMPTY } from './grid.js';
-import { colorOf as terrainColor } from './terrains/index.js';
+/**
+ * Icon renderer — draws entity emoji on a transparent 2D canvas that sits on
+ * top of the WebGL terrain canvas. Only this file handles text/emoji; terrain
+ * colour and overlays are rendered by WebGLRenderer (renderer-webgl.js).
+ */
 
-const CELL_SIZE = 40;
-const GAP       = 1;
+import { LAYER_VEGETATION, LAYER_ANIMALS, EMPTY } from './grid.js';
+import { CELL_SIZE } from './renderer-webgl.js';
 
 export class Renderer {
+  /**
+   * @param {HTMLCanvasElement} canvas  The 2D icon overlay canvas.
+   * @param {import('./grid.js').Grid} grid
+   */
   constructor(canvas, grid) {
     this.canvas = canvas;
     this.ctx    = canvas.getContext('2d');
     this.grid   = grid;
 
-    canvas.width  = grid.width  * CELL_SIZE;
-    canvas.height = grid.height * CELL_SIZE;
+    this._setSize();
 
     this.ctx.textAlign    = 'center';
     this.ctx.textBaseline = 'middle';
 
-    // Map from { layer → Map<typeId, icon> }
+    // Map from layer → Map<typeId, icon string>.
     // Populated by main.js via setEntityIcons().
     this._icons = new Map();
   }
@@ -29,56 +35,62 @@ export class Renderer {
     this._icons.set(layer, iconMap);
   }
 
+  /** Call after changing grid dimensions. */
+  resize(newGrid) {
+    this.grid = newGrid;
+    this._setSize();
+  }
+
+  _setSize() {
+    this.canvas.width  = this.grid.width  * CELL_SIZE;
+    this.canvas.height = this.grid.height * CELL_SIZE;
+  }
+
   draw() {
     const { ctx, grid } = this;
-    const cellInner = CELL_SIZE - GAP;
 
-    ctx.fillStyle = '#e8e8e8';
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // Clear to fully transparent so the WebGL terrain canvas shows through.
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     for (let y = 0; y < grid.height; y++) {
-      const py = y * CELL_SIZE + GAP;
       const cy = y * CELL_SIZE + CELL_SIZE / 2;
 
       for (let x = 0; x < grid.width; x++) {
-        const px = x * CELL_SIZE + GAP;
         const cx = x * CELL_SIZE + CELL_SIZE / 2;
-
-        // ── Pass 1: terrain fill ────────────────────────────────────────────
-        ctx.fillStyle = terrainColor(grid.get(x, y, LAYER_TERRAIN));
-        ctx.fillRect(px, py, cellInner, cellInner);
 
         const vegType    = grid.get(x, y, LAYER_VEGETATION);
         const animalType = grid.get(x, y, LAYER_ANIMALS);
         const hasAnimal  = animalType !== EMPTY;
         const hasVeg     = vegType    !== EMPTY;
 
-        // ── Pass 2: vegetation icon ─────────────────────────────────────────
+        // ── Vegetation icon ────────────────────────────────────────────────
         if (hasVeg) {
           const icon = this._icons.get(LAYER_VEGETATION)?.get(vegType);
           if (icon) {
             if (hasAnimal) {
-              // Both present: vegetation to top-left corner.
+              // Vegetation to top-left corner when sharing a cell with an animal.
               ctx.font = `${Math.floor(CELL_SIZE * 0.42)}px serif`;
-              ctx.fillText(icon, x * CELL_SIZE + CELL_SIZE * 0.27, y * CELL_SIZE + CELL_SIZE * 0.27);
+              ctx.fillText(icon,
+                x * CELL_SIZE + CELL_SIZE * 0.27,
+                y * CELL_SIZE + CELL_SIZE * 0.27);
             } else {
-              // Vegetation only: centered.
               ctx.font = `${Math.floor(CELL_SIZE * 0.55)}px serif`;
               ctx.fillText(icon, cx, cy + 1);
             }
           }
         }
 
-        // ── Pass 3: animal icon ─────────────────────────────────────────────
+        // ── Animal icon ────────────────────────────────────────────────────
         if (hasAnimal) {
           const icon = this._icons.get(LAYER_ANIMALS)?.get(animalType);
           if (icon) {
             if (hasVeg) {
-              // Both present: animal to bottom-right corner.
+              // Animal to bottom-right corner when sharing a cell with vegetation.
               ctx.font = `${Math.floor(CELL_SIZE * 0.42)}px serif`;
-              ctx.fillText(icon, x * CELL_SIZE + CELL_SIZE * 0.73, y * CELL_SIZE + CELL_SIZE * 0.73);
+              ctx.fillText(icon,
+                x * CELL_SIZE + CELL_SIZE * 0.73,
+                y * CELL_SIZE + CELL_SIZE * 0.73);
             } else {
-              // Animal only: centered.
               ctx.font = `${Math.floor(CELL_SIZE * 0.60)}px serif`;
               ctx.fillText(icon, cx, cy + 1);
             }

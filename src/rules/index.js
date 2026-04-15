@@ -7,14 +7,15 @@ import vegetationAging   from './vegetation-aging.js';
 
 // Application order:
 //   1. Vegetation spreads (land + aquatic).
-//   2. Animals act — priority-based: seek food when hungry, reproduce when well-fed, wander otherwise.
-//   3. Vegetation ages/dies.
+//   2. Predators act first — they strike adjacent prey before prey can flee.
+//   3. Herbivores act — flee, eat, reproduce.
+//   4. Vegetation ages/dies.
 export const ALL_RULES = [
   grassSpread,
   treeSpread,
   lilySpread,
-  herbivoreBehavior,
   predatorBehavior,
+  herbivoreBehavior,
   vegetationAging,
 ];
 
