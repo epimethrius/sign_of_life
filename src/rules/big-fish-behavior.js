@@ -42,7 +42,7 @@ export default {
     energyFromSmallFish:  12,
     reproThreshold:       15,
     reproCost:            8,
-    reproCooldownDivisor: 3,
+    reproCooldownDivisor: 2,
     spawnNearFood:        null, // seeded via _seedAquatic on water cells
   },
 

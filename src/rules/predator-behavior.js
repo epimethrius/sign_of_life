@@ -39,7 +39,7 @@ export default {
     energyFromFish:       8,   // energy gained from shore fishing (either fish type)
     reproThreshold:       20,
     reproCost:            10,
-    reproCooldownDivisor: 4,
+    reproCooldownDivisor: 2,
     spawnNearFood: { layer: LAYER_ANIMALS, types: PREY_TYPES },
   },
 
