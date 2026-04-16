@@ -57,7 +57,11 @@ sign_of_life/
 │       ├── lily-spread.js       # SPREAD/IDLE; aquatic — spreads on water cells only
 │       ├── vegetation-aging.js  # Increments age; kills at lifespan
 │       ├── herbivore-behavior.js
-│       └── predator-behavior.js
+│       ├── predator-behavior.js
+│       ├── omnivore-behavior.js
+│       ├── small-fish-behavior.js
+│       ├── big-fish-behavior.js
+│       └── season-engine.js
 ├── package.json
 ├── PLAN.md
 └── LICENSE
@@ -230,7 +234,8 @@ seed + share UI, rule registry with enable/disable.
 ## Backlog / Ideas
 
 - [x] Third animal type — **🦝 Omnivore** (`OMNIVORE=3`, `omnivore-behavior.js`). Eats grass/trees AND herbivores; hunted by predators. Provides predators an alternative prey source when herbivores are scarce, and keeps herbivore booms in check. FLEE_PROB=0.60 (bolder than herbivore).
-- [x] Seasonal pressure events — **Season Engine** (`season-engine.js`, `season-state.js`). 50-tick seasons (Spring/Summer/Autumn/Winter) cycling via `LAYER_EVENTS`. Effects: vegetation spread ±, lifespan ±, energy decay ×, repro threshold × — all applied per-tick via `getSeasonEffect(key)` imported in spread, aging, and animal behavior rules. Random events: **Drought** (Summer/Autumn, 0.6%/tick, 12-22 ticks) and **Cold Snap** (Autumn/Winter, 0.8%/tick, 8-18 ticks) stack on top of season effects. Season display shown in UI; resets per run in headless runner.
+- [x] Seasonal pressure events — **Season Engine** (`season-engine.js`, `season-state.js`). Configurable-length seasons (Spring/Summer/Autumn/Winter, default 50 ticks each) cycling via `LAYER_EVENTS`. Effects: vegetation spread ±, lifespan ±, energy decay ×, repro threshold × — all applied per-tick via `getSeasonEffect(key)` imported in spread, aging, and animal behavior rules. Random events: **Drought** (Summer/Autumn, 0.6%/tick, 12-22 ticks) and **Cold Snap** (Autumn/Winter, 0.8%/tick, 8-18 ticks) stack on top of season effects. Season display shown in UI; resets per run in headless runner. Season length exposed as a rule param in the UI.
+- [x] Aquatic food web — **🐟 Small Fish** (`SMALL_FISH=4`, `small-fish-behavior.js`) and **🐠 Big Fish** (`BIG_FISH=5`, `big-fish-behavior.js`). Small fish graze lily pads on water cells; big fish hunt small fish on water cells. Both fish types can be caught via **shore fishing**: land predators and omnivores adjacent to a water cell containing fish kill the fish from shore (no movement, gain `energyFromFish`) — connecting the aquatic and terrestrial food webs without land animals entering water. Seeded via `_seedAquatic`/`seedWater` which passes `baseEnergy`. Fish move only within adjacent WATER cells (`emptyWaterNeighbors` helper in `actions.js`). Both fish appear in the stats table, population chart, cell tooltip, and legend.
 - LZ-string compression for share codes at large grid sizes
 - Mobile touch support
 

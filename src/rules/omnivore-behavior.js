@@ -20,9 +20,25 @@
 import {
   OMNIVORE, HERBIVORE, PREDATOR,
   GRASS, TREE,
+  SMALL_FISH, BIG_FISH,
   LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN,
+  WATER,
 } from '../grid.js';
 import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
+
+const FISH_TYPES = [SMALL_FISH, BIG_FISH];
+
+/** Returns [x,y] pairs of adjacent WATER cells that contain a fish. */
+function shoreFishTargets(grid, x, y, al) {
+  const result = [];
+  for (const [dx, dy] of [[0,-1],[1,0],[0,1],[-1,0]]) {
+    const nx = x + dx, ny = y + dy;
+    if (!grid.inBounds(nx, ny)) continue;
+    if (grid.get(nx, ny, LAYER_TERRAIN) !== WATER) continue;
+    if (FISH_TYPES.includes(grid.get(nx, ny, al))) result.push([nx, ny]);
+  }
+  return result;
+}
 import { effectOf } from '../terrains/index.js';
 import { getSeasonEffect } from '../season-state.js';
 
@@ -65,6 +81,7 @@ export default {
     energyFromGrass:      2,
     energyFromTree:       1,
     energyFromHerbivore:  10,
+    energyFromFish:       6,   // energy gained from shore fishing (either fish type)
     reproThreshold:       14,
     reproCost:            10,
     reproCooldownDivisor: 2,
@@ -165,7 +182,19 @@ export default {
           continue;
         }
 
-        // 1b. Eat vegetation at current cell.
+        // 1b. Shore fishing: grab a fish from an adjacent water cell (no movement).
+        const fishCells = shoreFishTargets(grid, x, y, al);
+        if (fishCells.length > 0) {
+          const [fx, fy] = fishCells[Math.floor(rng() * fishCells.length)];
+          const fishType = grid.get(fx, fy, al);
+          grid.energy[al][i] += e.energyFromFish;
+          events.log('death-eaten', fishType, al);
+          events.log('eat-animal', OMNIVORE, al);
+          grid.kill(fx, fy, al);
+          continue;
+        }
+
+        // 1c. Eat vegetation at current cell.
         const vegType = grid.get(x, y, LAYER_VEGETATION);
         if (vegType === GRASS || vegType === TREE) {
           grid.energy[al][i] += vegType === GRASS ? e.energyFromGrass : e.energyFromTree;
@@ -174,7 +203,7 @@ export default {
           continue;
         }
 
-        // 1c. Move toward nearest food — prefer closer of herbivore vs vegetation.
+        // 1d. Move toward nearest food — prefer closer of herbivore vs vegetation.
         const nearestHerb = nearestFoodCell(grid, x, y, al, [HERBIVORE]);
         const nearestVeg  = nearestFoodCell(grid, x, y, LAYER_VEGETATION, FOOD_TYPES);
 

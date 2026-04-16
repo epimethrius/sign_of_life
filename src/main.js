@@ -1,7 +1,7 @@
 /* global __APP_VERSION__, __COMMIT_HASH__ */
 import {
   Grid,
-  GRASS, TREE, LILY, HERBIVORE, PREDATOR, OMNIVORE,
+  GRASS, TREE, LILY, HERBIVORE, PREDATOR, OMNIVORE, SMALL_FISH, BIG_FISH,
   SOIL, WATER, EMPTY,
   LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS,
 } from './grid.js';
@@ -58,9 +58,11 @@ const popInputs = {
   [LILY]:  document.getElementById('pop-lily'),
 };
 const popInputAnimals = {
-  [HERBIVORE]: document.getElementById('pop-herbivore'),
-  [PREDATOR]:  document.getElementById('pop-predator'),
-  [OMNIVORE]:  document.getElementById('pop-omnivore'),
+  [HERBIVORE]:  document.getElementById('pop-herbivore'),
+  [PREDATOR]:   document.getElementById('pop-predator'),
+  [OMNIVORE]:   document.getElementById('pop-omnivore'),
+  [SMALL_FISH]: document.getElementById('pop-small-fish'),
+  [BIG_FISH]:   document.getElementById('pop-big-fish'),
 };
 const seasonDisplayEl = document.getElementById('season-display');
 
@@ -85,27 +87,31 @@ function draw() {
 }
 const rules  = createRuleRegistry();
 const events = new EventLog();
-const stats  = new StatsBuffer(6, 1000); // 0=GRASS,1=TREE,2=LILY,3=HERBIVORE,4=PREDATOR,5=OMNIVORE
+const stats  = new StatsBuffer(8, 1000); // 0=GRASS,1=TREE,2=LILY,3=HERBIVORE,4=PREDATOR,5=OMNIVORE,6=SMALL_FISH,7=BIG_FISH
 
 const CHART_SERIES = [
-  { label: 'Grass',     color: '#5a9e4a' },
-  { label: 'Tree',      color: '#2d6e2d' },
-  { label: 'Lily',      color: '#c44faa' },
-  { label: 'Herbivore', color: '#7b68cc' },
-  { label: 'Predator',  color: '#d45f2a' },
-  { label: 'Omnivore',  color: '#a0622a' },
+  { label: 'Grass',      color: '#5a9e4a' },
+  { label: 'Tree',       color: '#2d6e2d' },
+  { label: 'Lily',       color: '#c44faa' },
+  { label: 'Herbivore',  color: '#7b68cc' },
+  { label: 'Predator',   color: '#d45f2a' },
+  { label: 'Omnivore',   color: '#a0622a' },
+  { label: 'Small Fish', color: '#2299cc' },
+  { label: 'Big Fish',   color: '#115577' },
 ];
 chartCanvas.width  = 640;
 chartCanvas.height = 140;
 const chartRenderer = new ChartRenderer(chartCanvas, CHART_SERIES);
 
 const ENTITY_KEYS = [
-  { typeId: GRASS,     layer: LAYER_VEGETATION, label: 'Grass',     icon: '🌿', statsIdx: 0 },
-  { typeId: TREE,      layer: LAYER_VEGETATION, label: 'Tree',      icon: '🌲', statsIdx: 1 },
-  { typeId: LILY,      layer: LAYER_VEGETATION, label: 'Lily',      icon: '🪷', statsIdx: 2 },
-  { typeId: HERBIVORE, layer: LAYER_ANIMALS,    label: 'Herbivore', icon: '🐇', statsIdx: 3 },
-  { typeId: PREDATOR,  layer: LAYER_ANIMALS,    label: 'Predator',  icon: '🦊', statsIdx: 4 },
-  { typeId: OMNIVORE,  layer: LAYER_ANIMALS,    label: 'Omnivore',  icon: '🦝', statsIdx: 5 },
+  { typeId: GRASS,      layer: LAYER_VEGETATION, label: 'Grass',      icon: '🌿', statsIdx: 0 },
+  { typeId: TREE,       layer: LAYER_VEGETATION, label: 'Tree',       icon: '🌲', statsIdx: 1 },
+  { typeId: LILY,       layer: LAYER_VEGETATION, label: 'Lily',       icon: '🪷', statsIdx: 2 },
+  { typeId: HERBIVORE,  layer: LAYER_ANIMALS,    label: 'Herbivore',  icon: '🐇', statsIdx: 3 },
+  { typeId: PREDATOR,   layer: LAYER_ANIMALS,    label: 'Predator',   icon: '🦊', statsIdx: 4 },
+  { typeId: OMNIVORE,   layer: LAYER_ANIMALS,    label: 'Omnivore',   icon: '🦝', statsIdx: 5 },
+  { typeId: SMALL_FISH, layer: LAYER_ANIMALS,    label: 'Small Fish', icon: '🐟', statsIdx: 6 },
+  { typeId: BIG_FISH,   layer: LAYER_ANIMALS,    label: 'Big Fish',   icon: '🐠', statsIdx: 7 },
 ];
 
 let lifetimeBirths = {};
@@ -120,7 +126,7 @@ function _ekey(k) { return `${k.typeId}:${k.layer}`; }
 
 function _applyEntityIcons() {
   iconRenderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲'], [LILY, '🪷']]));
-  iconRenderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊'], [OMNIVORE, '🦝']]));
+  iconRenderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊'], [OMNIVORE, '🦝'], [SMALL_FISH, '🐟'], [BIG_FISH, '🐠']]));
 }
 
 let simRng;
@@ -161,7 +167,7 @@ function init(seed) {
   _seedMany(TREE,  LAYER_VEGETATION, getPopCount(TREE,  LAYER_VEGETATION), null, initRng);
   _seedAquatic(LILY, LAYER_VEGETATION, getPopCount(LILY, LAYER_VEGETATION), initRng);
 
-  // Seed animals near their food source.
+  // Seed land animals near their food source.
   const herbRule = rules.rules.find(r => r.entity?.typeId === HERBIVORE);
   const predRule = rules.rules.find(r => r.entity?.typeId === PREDATOR);
   const omniRule = rules.rules.find(r => r.entity?.typeId === OMNIVORE);
@@ -169,13 +175,19 @@ function init(seed) {
   _seedMany(PREDATOR,  LAYER_ANIMALS, getPopCount(PREDATOR,  LAYER_ANIMALS), predRule?.entity?.spawnNearFood ?? null, initRng);
   _seedMany(OMNIVORE,  LAYER_ANIMALS, getPopCount(OMNIVORE,  LAYER_ANIMALS), omniRule?.entity?.spawnNearFood ?? null, initRng);
 
+  // Seed aquatic animals on water cells.
+  _seedAquatic(SMALL_FISH, LAYER_ANIMALS, getPopCount(SMALL_FISH, LAYER_ANIMALS), initRng);
+  _seedAquatic(BIG_FISH,   LAYER_ANIMALS, getPopCount(BIG_FISH,   LAYER_ANIMALS), initRng);
+
   resetSeasonState();
 
   generation      = 0;
   finished        = false;
   stableTicks     = 0;
   prevTotalVeg    = grid.countState(GRASS, LAYER_VEGETATION) + grid.countState(TREE, LAYER_VEGETATION) + grid.countState(LILY, LAYER_VEGETATION);
-  prevTotalAnimal = grid.countState(HERBIVORE, LAYER_ANIMALS) + grid.countState(PREDATOR, LAYER_ANIMALS) + grid.countState(OMNIVORE, LAYER_ANIMALS);
+  prevTotalAnimal = grid.countState(HERBIVORE,  LAYER_ANIMALS) + grid.countState(PREDATOR, LAYER_ANIMALS)
+                  + grid.countState(OMNIVORE,   LAYER_ANIMALS)
+                  + grid.countState(SMALL_FISH, LAYER_ANIMALS) + grid.countState(BIG_FISH, LAYER_ANIMALS);
 
   stats.reset();
   events.reset();
@@ -229,6 +241,7 @@ function _seedAquatic(entityType, layer, count, rng) {
   const rule = rules.rules.find(r => r.entity?.typeId === entityType && r.entity?.layer === layer);
   const baseLifespan     = rule?.entity?.baseLifespan     ?? 0;
   const lifespanVariance = rule?.entity?.lifespanVariance ?? 0;
+  const baseEnergy       = rule?.entity?.baseEnergy       ?? 0;
 
   const candidates = [];
   for (let y = 0; y < grid.height; y++) {
@@ -244,7 +257,7 @@ function _seedAquatic(entityType, layer, count, rng) {
     const [x, y] = candidates[idx];
     candidates.splice(idx, 1);
     const ls = baseLifespan > 0 ? computeLifespan(baseLifespan, lifespanVariance, rng) : 0;
-    grid.place(x, y, entityType, layer, ls, 0);
+    grid.place(x, y, entityType, layer, ls, baseEnergy);
   }
 }
 
@@ -288,17 +301,19 @@ function tick() {
   }
 
   const counts = [
-    grid.countState(GRASS,     LAYER_VEGETATION),
-    grid.countState(TREE,      LAYER_VEGETATION),
-    grid.countState(LILY,      LAYER_VEGETATION),
-    grid.countState(HERBIVORE, LAYER_ANIMALS),
-    grid.countState(PREDATOR,  LAYER_ANIMALS),
-    grid.countState(OMNIVORE,  LAYER_ANIMALS),
+    grid.countState(GRASS,      LAYER_VEGETATION),
+    grid.countState(TREE,       LAYER_VEGETATION),
+    grid.countState(LILY,       LAYER_VEGETATION),
+    grid.countState(HERBIVORE,  LAYER_ANIMALS),
+    grid.countState(PREDATOR,   LAYER_ANIMALS),
+    grid.countState(OMNIVORE,   LAYER_ANIMALS),
+    grid.countState(SMALL_FISH, LAYER_ANIMALS),
+    grid.countState(BIG_FISH,   LAYER_ANIMALS),
   ];
   stats.push(counts);
 
   const totalVeg    = counts[0] + counts[1] + counts[2];
-  const totalAnimal = counts[3] + counts[4] + counts[5];
+  const totalAnimal = counts[3] + counts[4] + counts[5] + counts[6] + counts[7];
   if (totalVeg === prevTotalVeg && totalAnimal === prevTotalAnimal) {
     if (++stableTicks >= 5) {
       finished = true;
@@ -319,12 +334,14 @@ function tick() {
 
 function updateStatus(counts) {
   const c = counts ?? [
-    grid.countState(GRASS,     LAYER_VEGETATION),
-    grid.countState(TREE,      LAYER_VEGETATION),
-    grid.countState(LILY,      LAYER_VEGETATION),
-    grid.countState(HERBIVORE, LAYER_ANIMALS),
-    grid.countState(PREDATOR,  LAYER_ANIMALS),
-    grid.countState(OMNIVORE,  LAYER_ANIMALS),
+    grid.countState(GRASS,      LAYER_VEGETATION),
+    grid.countState(TREE,       LAYER_VEGETATION),
+    grid.countState(LILY,       LAYER_VEGETATION),
+    grid.countState(HERBIVORE,  LAYER_ANIMALS),
+    grid.countState(PREDATOR,   LAYER_ANIMALS),
+    grid.countState(OMNIVORE,   LAYER_ANIMALS),
+    grid.countState(SMALL_FISH, LAYER_ANIMALS),
+    grid.countState(BIG_FISH,   LAYER_ANIMALS),
   ];
   statusLine.textContent = `Generation: ${generation}`;
 
@@ -554,7 +571,7 @@ function rebuildRuleUI() {
     desc.textContent = rule.description;
     wrapper.appendChild(desc);
 
-    // Editable entity params
+    // Editable entity params (for rules with a living entity)
     if (rule.entity?.baseLifespan !== undefined) {
       const params = document.createElement('div');
       params.className = 'rule-params';
@@ -572,6 +589,17 @@ function rebuildRuleUI() {
         params.appendChild(_numInput('Repro cooldown (lifespan÷)', rule.entity.reproCooldownDivisor, 1, 100,
           v => { rule.entity.reproCooldownDivisor = v; }));
       wrapper.appendChild(params);
+    }
+
+    // Generic configurable params (e.g. season length on the season engine)
+    if (rule.params?.length) {
+      const paramRow = document.createElement('div');
+      paramRow.className = 'rule-params';
+      for (const p of rule.params) {
+        paramRow.appendChild(_numInput(p.label, p.value, p.min ?? 1, p.max ?? 9999,
+          v => { p.value = v; }));
+      }
+      wrapper.appendChild(paramRow);
     }
 
     rulesList.appendChild(wrapper);

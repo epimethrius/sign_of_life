@@ -66,6 +66,21 @@ export function emptyAnimalNeighbors(grid, x, y, animalLayer) {
 }
 
 /**
+ * Returns all 4-neighbour cells that ARE water and unoccupied on animalLayer.
+ * Used for fish movement — fish can only move within water.
+ *
+ * @param {Grid}   grid
+ * @param {number} x
+ * @param {number} y
+ * @param {number} animalLayer
+ * @returns {[number, number][]}
+ */
+export function emptyWaterNeighbors(grid, x, y, animalLayer) {
+  return grid.spreadTargets(x, y, animalLayer, [])
+    .filter(([nx, ny]) => grid.get(nx, ny, LAYER_TERRAIN) === WATER);
+}
+
+/**
  * Picks one action from a weighted list using the seeded RNG.
  *
  * @param {Array<{action: string, weight: number}>} actions

@@ -15,9 +15,6 @@
 import { LAYER_EVENTS } from '../grid.js';
 import { seasonState, SEASON_INFO, EVENT_INFO } from '../season-state.js';
 
-// Ticks per season (full year = 4 × SEASON_LENGTH ticks).
-const SEASON_LENGTH = 50;
-
 // Probability per tick that a weather event begins (when eligible season).
 const DROUGHT_PROB   = 0.006;   // ~26% chance across a 50-tick summer
 const COLD_SNAP_PROB = 0.008;   // ~33% chance across a 50-tick autumn
@@ -35,12 +32,19 @@ export default {
   description: 'Cycles spring→summer→autumn→winter; triggers drought and cold snaps.',
   entity: null,
 
+  // Configurable parameters exposed in the Rules UI.
+  params: [
+    { key: 'seasonLength', label: 'Season length (ticks)', value: 50, min: 5, max: 500 },
+  ],
+
   apply(grid, rng, events) {
     const s = seasonState;
     s.tick++;
 
+    const seasonLength = this.params[0].value;
+
     // ── Season transition ────────────────────────────────────────────────────
-    const newSeason = Math.floor(s.tick / SEASON_LENGTH) % 4;
+    const newSeason = Math.floor(s.tick / seasonLength) % 4;
     if (newSeason !== s.season) {
       s.season = newSeason;
       events.log('season-change', 0, LAYER_EVENTS);

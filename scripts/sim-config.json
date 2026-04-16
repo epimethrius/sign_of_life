@@ -10,12 +10,14 @@
   },
 
   "population": {
-    "grass":     20,
-    "tree":      12,
-    "lily":       8,
-    "herbivore": 16,
-    "predator":   3,
-    "omnivore":   6
+    "grass":       20,
+    "tree":        12,
+    "lily":         8,
+    "herbivore":   16,
+    "predator":     3,
+    "omnivore":     6,
+    "small_fish":  12,
+    "big_fish":     4
   },
 
   "rules": {

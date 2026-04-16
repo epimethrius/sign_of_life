@@ -1,10 +1,24 @@
-import { PREDATOR, HERBIVORE, OMNIVORE, LAYER_ANIMALS, LAYER_TERRAIN } from '../grid.js';
+import { PREDATOR, HERBIVORE, OMNIVORE, SMALL_FISH, BIG_FISH, LAYER_ANIMALS, LAYER_TERRAIN, WATER } from '../grid.js';
 import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
 import { getSeasonEffect } from '../season-state.js';
 
-// Predators hunt both herbivores and omnivores.
-const PREY_TYPES = [HERBIVORE, OMNIVORE];
+// Predators hunt herbivores and omnivores on land.
+const PREY_TYPES  = [HERBIVORE, OMNIVORE];
+// Both fish types can be caught via shore fishing.
+const FISH_TYPES  = [SMALL_FISH, BIG_FISH];
+
+/** Returns [x,y] pairs of adjacent WATER cells that contain a fish. */
+function shoreFishTargets(grid, x, y, al) {
+  const result = [];
+  for (const [dx, dy] of [[0,-1],[1,0],[0,1],[-1,0]]) {
+    const nx = x + dx, ny = y + dy;
+    if (!grid.inBounds(nx, ny)) continue;
+    if (grid.get(nx, ny, LAYER_TERRAIN) !== WATER) continue;
+    if (FISH_TYPES.includes(grid.get(nx, ny, al))) result.push([nx, ny]);
+  }
+  return result;
+}
 
 export default {
   id: 'predator-behavior',
@@ -16,12 +30,13 @@ export default {
     layer:                LAYER_ANIMALS,
     name:                 'Predator',
     icon:                 '🦊',
-    description:          'Hunts herbivores. Dies of age or starvation.',
+    description:          'Hunts herbivores and omnivores. Shore-fishes both fish types.',
     baseLifespan:         20,
     lifespanVariance:     0.2,
     baseEnergy:           25,
     energyDecayPerTick:   1.2,
     energyFromHerbivore:  15,
+    energyFromFish:       8,   // energy gained from shore fishing (either fish type)
     reproThreshold:       20,
     reproCost:            10,
     reproCooldownDivisor: 4,
@@ -68,7 +83,7 @@ export default {
 
       // ── 1. Hungry: seek prey deterministically ───────────────────────────────
       if (energy < hungerThreshold) {
-        // Check adjacent cells for prey first.
+        // Check adjacent land cells for prey first.
         const prey = grid.spreadTargets(x, y, al, PREY_TYPES)
           .filter(([nx, ny]) => PREY_TYPES.includes(grid.get(nx, ny, al)));
 
@@ -82,7 +97,18 @@ export default {
           grid.move(x, y, nx, ny, al);
           movedThisTick.add(ny * grid.width + nx);
         } else {
-          // Move toward nearest herbivore.
+          // Shore fishing: grab a fish from an adjacent water cell (no movement).
+          const fishCells = shoreFishTargets(grid, x, y, al);
+          if (fishCells.length > 0) {
+            const [fx, fy] = fishCells[Math.floor(rng() * fishCells.length)];
+            const fishType = grid.get(fx, fy, al);
+            grid.energy[al][i] += e.energyFromFish;
+            events.log('death-eaten', fishType, al);
+            events.log('eat-animal', PREDATOR, al);
+            grid.kill(fx, fy, al);
+            // No movement — predator stays on land.
+          } else {
+          // Move toward nearest land prey (or shore if fish is the only option).
           const nearest = nearestFoodCell(grid, x, y, al, PREY_TYPES);
           const targets = emptyAnimalNeighbors(grid, x, y, al);
           if (nearest && targets.length > 0) {
@@ -102,7 +128,8 @@ export default {
             grid.move(x, y, nx, ny, al);
             movedThisTick.add(ny * grid.width + nx);
           }
-        }
+          } // end else (no shore fish)
+        } // end else (no adjacent land prey)
 
       // ── 2. Ready to reproduce ────────────────────────────────────────────────
       // Energy gate: must have enough reserves to raise offspring.
