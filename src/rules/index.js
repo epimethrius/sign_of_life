@@ -3,6 +3,7 @@ import grassSpread        from './grass-spread.js';
 import treeSpread         from './tree-spread.js';
 import lilySpread         from './lily-spread.js';
 import predatorBehavior   from './predator-behavior.js';
+import birdBehavior       from './bird-behavior.js';
 import omnivoreBehavior   from './omnivore-behavior.js';
 import herbivoreBehavior  from './herbivore-behavior.js';
 import bigFishBehavior    from './big-fish-behavior.js';
@@ -13,17 +14,19 @@ import vegetationAging    from './vegetation-aging.js';
 //   1. Season engine — updates season state so all rules see current effects.
 //   2. Vegetation spreads (land + aquatic).
 //   3. Land predators first — strike adjacent prey before prey can flee.
-//   4. Land omnivores — eat herbivores/plants/shore-fish, flee predators.
-//   5. Land herbivores — flee, eat, reproduce.
-//   6. Big fish — hunt small fish in water.
-//   7. Small fish — graze lily pads in water.
-//   8. Vegetation ages/dies (including seasonal attrition).
+//   4. Birds — aerial hunters, strike herbivores before they can flee.
+//   5. Land omnivores — eat herbivores/plants/shore-fish, flee predators.
+//   6. Land herbivores — flee, eat, reproduce.
+//   7. Big fish — hunt small fish in water.
+//   8. Small fish — graze lily pads in water.
+//   9. Vegetation ages/dies (including seasonal attrition).
 export const ALL_RULES = [
   seasonEngine,
   grassSpread,
   treeSpread,
   lilySpread,
   predatorBehavior,
+  birdBehavior,
   omnivoreBehavior,
   herbivoreBehavior,
   bigFishBehavior,

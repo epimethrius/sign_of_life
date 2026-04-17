@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, resolve }    from 'path';
 import { fileURLToPath }       from 'url';
-import { Grid, GRASS, TREE, LILY, HERBIVORE, PREDATOR, OMNIVORE, SMALL_FISH, BIG_FISH,
+import { Grid, GRASS, TREE, LILY, HERBIVORE, PREDATOR, OMNIVORE, SMALL_FISH, BIG_FISH, BIRD,
          WATER, EMPTY, LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS }
   from '../src/grid.js';
 import { resetSeasonState } from '../src/season-state.js';
@@ -97,6 +97,7 @@ function parseCliRaw() {
     popOmnivore:   int('pop-omnivore'),
     popSmallFish:  int('pop-small-fish'),
     popBigFish:    int('pop-big-fish'),
+    popBird:       int('pop-bird'),
     grassLifespan: int('grass-lifespan'),
     treeLifespan:  int('tree-lifespan'),
     herbLifespan:  int('herb-lifespan'),
@@ -141,6 +142,7 @@ function buildOpts(cli, cfg) {
     popOmnivore:   first(cli.popOmnivore,   cfg.population?.omnivore),
     popSmallFish:  first(cli.popSmallFish,  cfg.population?.small_fish),
     popBigFish:    first(cli.popBigFish,    cfg.population?.big_fish),
+    popBird:       first(cli.popBird,       cfg.population?.bird),
     grassLifespan: first(cli.grassLifespan, cfg.rules?.grassLifespan),
     treeLifespan:  first(cli.treeLifespan,  cfg.rules?.treeLifespan),
     herbLifespan:  first(cli.herbLifespan,  cfg.rules?.herbLifespan),
@@ -157,7 +159,7 @@ function parseArgs() { return buildOpts(parseCliRaw(), loadConfig()); }
 // ── Population scaling ────────────────────────────────────────────────────────
 
 // Baseline defaults match the UI on a 10×10 grid (100 cells).
-const BASE_POPS = { grass: 5, tree: 3, lily: 2, herb: 4, pred: 2, omni: 3, sfish: 3, bfish: 2 };
+const BASE_POPS = { grass: 5, tree: 3, lily: 2, herb: 4, pred: 2, omni: 3, sfish: 3, bfish: 2, bird: 2 };
 
 function scaledPops(opts) {
   const scale = (opts.size * opts.size) / 100;
@@ -170,6 +172,7 @@ function scaledPops(opts) {
     omni:  opts.popOmnivore  ?? Math.max(1, Math.round(BASE_POPS.omni   * scale)),
     sfish: opts.popSmallFish ?? Math.max(1, Math.round(BASE_POPS.sfish  * scale)),
     bfish: opts.popBigFish   ?? Math.max(1, Math.round(BASE_POPS.bfish  * scale)),
+    bird:  opts.popBird      ?? Math.max(0, Math.round(BASE_POPS.bird   * scale)),
   };
 }
 
@@ -262,10 +265,11 @@ function runSim(seed, opts, rules, pops) {
   seedLand (grid, rules, HERBIVORE,  LAYER_ANIMALS,    pops.herb,   initRng);
   seedLand (grid, rules, PREDATOR,   LAYER_ANIMALS,    pops.pred,   initRng);
   seedLand (grid, rules, OMNIVORE,   LAYER_ANIMALS,    pops.omni,   initRng);
+  seedLand (grid, rules, BIRD,       LAYER_ANIMALS,    pops.bird,   initRng);
   seedWater(grid, rules, SMALL_FISH, LAYER_ANIMALS,    pops.sfish,  initRng);
   seedWater(grid, rules, BIG_FISH,   LAYER_ANIMALS,    pops.bfish,  initRng);
 
-  // Population snapshot: [grass, tree, lily, herb, pred, omni, sfish, bfish]
+  // Population snapshot: [grass, tree, lily, herb, pred, omni, sfish, bfish, bird]
   const snap = () => [
     grid.countState(GRASS,      LAYER_VEGETATION),
     grid.countState(TREE,       LAYER_VEGETATION),
@@ -275,6 +279,7 @@ function runSim(seed, opts, rules, pops) {
     grid.countState(OMNIVORE,   LAYER_ANIMALS),
     grid.countState(SMALL_FISH, LAYER_ANIMALS),
     grid.countState(BIG_FISH,   LAYER_ANIMALS),
+    grid.countState(BIRD,       LAYER_ANIMALS),
   ];
 
   const history = [snap()];
@@ -303,7 +308,7 @@ function runSim(seed, opts, rules, pops) {
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 // Column indices in history snapshots
-const IDX = { grass: 0, tree: 1, lily: 2, herb: 3, pred: 4, omni: 5, sfish: 6, bfish: 7 };
+const IDX = { grass: 0, tree: 1, lily: 2, herb: 3, pred: 4, omni: 5, sfish: 6, bfish: 7, bird: 8 };
 const SPECIES = Object.keys(IDX);
 
 function mean(arr)   { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
@@ -365,14 +370,14 @@ function computeMetrics(allHistory) {
 
   for (const history of allHistory) {
     const final = history.at(-1);
-    const [g, tr, li, h, p, o, sf, bf] = final;
+    const [g, tr, li, h, p, o, sf, bf, bi] = final;
     const veg = g + tr + li;
 
     runLengths.push(history.length - 1);
-    if (g > 0 && tr > 0 && li > 0 && h > 0 && p > 0 && o > 0 && sf > 0 && bf > 0) fullSurvival++;
-    if (h === 0 && p === 0 && o === 0 && sf === 0 && bf === 0) animalCollapse++;
-    if (h + o > 0 && p > 0) predPreyRatios.push(p / (h + o));
-    if (h + p + o > 0)       vegAnimalRatios.push(veg / (h + p + o));
+    if (g > 0 && tr > 0 && li > 0 && h > 0 && p > 0 && o > 0 && sf > 0 && bf > 0 && bi > 0) fullSurvival++;
+    if (h === 0 && p === 0 && o === 0 && sf === 0 && bf === 0 && bi === 0) animalCollapse++;
+    if (h + o > 0 && p + bi > 0) predPreyRatios.push((p + bi) / (h + o));
+    if (h + p + o + bi > 0)      vegAnimalRatios.push(veg / (h + p + o + bi));
   }
 
   return {
@@ -395,7 +400,7 @@ const C = {
   cyan:   '\x1b[36m',  gray:   '\x1b[90m',
 };
 
-const ICONS = { grass: '🌿', tree: '🌲', lily: '🪷', herb: '🐇', pred: '🦊', omni: '🦝', sfish: '🐟', bfish: '🐠' };
+const ICONS = { grass: '🌿', tree: '🌲', lily: '🪷', herb: '🐇', pred: '🦊', omni: '🦝', sfish: '🐟', bfish: '🐠', bird: '🦅' };
 
 function pct(r, pad = 4) { return `${Math.round(r * 100)}%`.padStart(pad); }
 function f1(n)   { return n == null || isNaN(n) ? '  —' : n.toFixed(1).padStart(5); }
@@ -426,7 +431,7 @@ function printReport(opts, pops, metrics, rules, elapsed, lines = null) {
   emit(`${C.bold}Sign of Life — Balance Runner${C.reset}`);
   emit(`${C.dim}${opts.runs} runs · ${opts.ticks} ticks/run · ${opts.size}×${opts.size} · ${(elapsed / 1000).toFixed(1)}s${C.reset}`);
   emit(`${C.dim}terrain  water=${opts.water}%  rock=${opts.rock}%  sand=${opts.sand}%  soil=${soil}%${C.reset}`);
-  emit(`${C.dim}pop init 🌿${pops.grass} 🌲${pops.tree} 🪷${pops.lily} 🐇${pops.herb} 🦊${pops.pred} 🦝${pops.omni} 🐟${pops.sfish} 🐠${pops.bfish}${C.reset}`);
+  emit(`${C.dim}pop init 🌿${pops.grass} 🌲${pops.tree} 🪷${pops.lily} 🐇${pops.herb} 🦊${pops.pred} 🦝${pops.omni} 🐟${pops.sfish} 🐠${pops.bfish} 🦅${pops.bird}${C.reset}`);
   emit(`${C.dim}lifespan 🌿${grassE?.baseLifespan ?? '?'} 🌲${treeE?.baseLifespan ?? '?'} 🐇${herbE?.baseLifespan ?? '?'} 🦊${predE?.baseLifespan ?? '?'}    cooldown÷ 🐇${herbE?.reproCooldownDivisor ?? '?'} 🦊${predE?.reproCooldownDivisor ?? '?'}${C.reset}`);
 
   // ── Species table ──
@@ -453,7 +458,7 @@ function printReport(opts, pops, metrics, rules, elapsed, lines = null) {
   emit(`${C.bold}  Ecosystem${C.reset}`);
   const fsCol  = survColor(eco.fullSurvivalRate);
   const acCol  = eco.animalCollapseRate <= 0.1 ? C.green : eco.animalCollapseRate <= 0.3 ? C.yellow : C.red;
-  emit(`    All 8 species at end:      ${fsCol}${pct(eco.fullSurvivalRate, 0)}${C.reset}`);
+  emit(`    All 9 species at end:      ${fsCol}${pct(eco.fullSurvivalRate, 0)}${C.reset}`);
   emit(`    Animal collapse (none left): ${acCol}${pct(eco.animalCollapseRate, 0)}${C.reset}`);
   emit(`    Median run length (ticks):  ${Math.round(eco.medianRunLength)}`);
   if (eco.meanPredPreyRatio > 0)

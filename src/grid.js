@@ -25,6 +25,7 @@ export const PREDATOR   = 2;
 export const OMNIVORE   = 3;  // eats plants AND herbivores; prey for predators
 export const SMALL_FISH = 4;  // aquatic herbivore — eats lily; prey for big fish and shore hunters
 export const BIG_FISH   = 5;  // aquatic predator — eats small fish; hunted from shore
+export const BIRD       = 6;  // aerial predator — hunts herbivores; nests only in trees
 
 // ── 4-directional neighbour offsets ───────────────────────────────────────────
 const DIRS_4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];

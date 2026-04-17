@@ -35,15 +35,15 @@ export default {
     name:                 'Herbivore',
     icon:                 '🐇',
     description:          'Eats grass and trees. Moves, reproduces, dies of age or starvation.',
-    baseLifespan:         30,
+    baseLifespan:         35,
     lifespanVariance:     0.4,
     baseEnergy:           12,
-    energyDecayPerTick:   0.5,
+    energyDecayPerTick:   0.3,
     energyFromGrass:      6,
     energyFromTree:       6,
-    reproThreshold:       16,
+    reproThreshold:       10,
     reproCost:            5,
-    reproCooldownDivisor: 2,
+    reproCooldownDivisor: 3,
     spawnNearFood: { layer: LAYER_VEGETATION, types: FOOD_TYPES },
   },
 
@@ -157,10 +157,11 @@ export default {
         }
 
       // ── 2. Ready to reproduce ────────────────────────────────────────────────
-      // Energy gate: must have enough reserves to raise offspring.
-      // This is the feedback that prevents overshoot — animals won't breed when food is scarce.
+      // Food-coupled: must be standing on vegetation, which is consumed as breeding cost.
+      // This spatially caps population to vegetation density — the primary boom-crash governor.
       } else if (grid.reproCooldown[al][i] === 0 && energy >= reproThreshEff) {
-        if (targets.length > 0) {
+        const vegHere = grid.get(x, y, LAYER_VEGETATION);
+        if (targets.length > 0 && (vegHere === GRASS || vegHere === TREE)) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
@@ -168,6 +169,7 @@ export default {
           grid.energy[al][i] -= e.reproCost;
           grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
           grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
+          grid.kill(x, y, LAYER_VEGETATION);
           events.log('birth', HERBIVORE, al);
         }
 

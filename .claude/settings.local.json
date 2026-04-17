@@ -10,7 +10,27 @@
       "Bash(npm run *)",
       "Bash(curl -s http://localhost:5174/)",
       "Bash(node scripts/sim-runner.mjs --runs=10 --ticks=200)",
-      "Bash(node scripts/run-sim.js)"
+      "Bash(node scripts/run-sim.js)",
+      "Bash(node scripts/sim-runner.mjs --pop-predator=0 --pop-omnivore=0 --runs=20)",
+      "Bash(node scripts/sim-runner.mjs --runs=30)",
+      "Bash(node scripts/sim-runner.mjs --runs=20 --pop-predator=0 --pop-omnivore=0 --pop-bird=4)",
+      "Bash(node scripts/sim-runner.mjs --runs=30 --pop-predator=4 --pop-omnivore=4 --pop-bird=2)",
+      "Bash(node scripts/sim-runner.mjs --pop-herbivore 10)",
+      "Bash(node scripts/sim-runner.mjs --help)",
+      "Bash(node scripts/sim-runner.mjs --pop-herbivore=10)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=1)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=40)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --pred-lifespan=25)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=32)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=36)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=38 --tree-lifespan=36)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=40)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=44)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=40 --pred-cooldown=3)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=42)",
+      "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=42 --runs=60)",
+      "Bash(node scripts/sim-runner.mjs --runs=60)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 /* global __APP_VERSION__, __COMMIT_HASH__ */
 import {
   Grid,
-  GRASS, TREE, LILY, HERBIVORE, PREDATOR, OMNIVORE, SMALL_FISH, BIG_FISH,
+  GRASS, TREE, LILY, HERBIVORE, PREDATOR, OMNIVORE, SMALL_FISH, BIG_FISH, BIRD,
   SOIL, WATER, EMPTY,
   LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS,
 } from './grid.js';
@@ -63,6 +63,7 @@ const popInputAnimals = {
   [OMNIVORE]:   document.getElementById('pop-omnivore'),
   [SMALL_FISH]: document.getElementById('pop-small-fish'),
   [BIG_FISH]:   document.getElementById('pop-big-fish'),
+  [BIRD]:       document.getElementById('pop-bird'),
 };
 const seasonDisplayEl = document.getElementById('season-display');
 
@@ -87,7 +88,7 @@ function draw() {
 }
 const rules  = createRuleRegistry();
 const events = new EventLog();
-const stats  = new StatsBuffer(8, 1000); // 0=GRASS,1=TREE,2=LILY,3=HERBIVORE,4=PREDATOR,5=OMNIVORE,6=SMALL_FISH,7=BIG_FISH
+const stats  = new StatsBuffer(9, 1000); // 0=GRASS,1=TREE,2=LILY,3=HERBIVORE,4=PREDATOR,5=OMNIVORE,6=SMALL_FISH,7=BIG_FISH,8=BIRD
 
 const CHART_SERIES = [
   { label: 'Grass',      color: '#5a9e4a' },
@@ -98,6 +99,7 @@ const CHART_SERIES = [
   { label: 'Omnivore',   color: '#a0622a' },
   { label: 'Small Fish', color: '#2299cc' },
   { label: 'Big Fish',   color: '#115577' },
+  { label: 'Bird',       color: '#cc8822' },
 ];
 chartCanvas.width  = 640;
 chartCanvas.height = 140;
@@ -112,6 +114,7 @@ const ENTITY_KEYS = [
   { typeId: OMNIVORE,   layer: LAYER_ANIMALS,    label: 'Omnivore',   icon: '🦝', statsIdx: 5 },
   { typeId: SMALL_FISH, layer: LAYER_ANIMALS,    label: 'Small Fish', icon: '🐟', statsIdx: 6 },
   { typeId: BIG_FISH,   layer: LAYER_ANIMALS,    label: 'Big Fish',   icon: '🐠', statsIdx: 7 },
+  { typeId: BIRD,       layer: LAYER_ANIMALS,    label: 'Bird',       icon: '🦅', statsIdx: 8 },
 ];
 
 let lifetimeBirths = {};
@@ -126,7 +129,7 @@ function _ekey(k) { return `${k.typeId}:${k.layer}`; }
 
 function _applyEntityIcons() {
   iconRenderer.setEntityIcons(LAYER_VEGETATION, new Map([[GRASS, '🌿'], [TREE, '🌲'], [LILY, '🪷']]));
-  iconRenderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊'], [OMNIVORE, '🦝'], [SMALL_FISH, '🐟'], [BIG_FISH, '🐠']]));
+  iconRenderer.setEntityIcons(LAYER_ANIMALS,    new Map([[HERBIVORE, '🐇'], [PREDATOR, '🦊'], [OMNIVORE, '🦝'], [SMALL_FISH, '🐟'], [BIG_FISH, '🐠'], [BIRD, '🦅']]));
 }
 
 let simRng;
@@ -174,6 +177,7 @@ function init(seed) {
   _seedMany(HERBIVORE, LAYER_ANIMALS, getPopCount(HERBIVORE, LAYER_ANIMALS), herbRule?.entity?.spawnNearFood ?? null, initRng);
   _seedMany(PREDATOR,  LAYER_ANIMALS, getPopCount(PREDATOR,  LAYER_ANIMALS), predRule?.entity?.spawnNearFood ?? null, initRng);
   _seedMany(OMNIVORE,  LAYER_ANIMALS, getPopCount(OMNIVORE,  LAYER_ANIMALS), omniRule?.entity?.spawnNearFood ?? null, initRng);
+  _seedMany(BIRD,      LAYER_ANIMALS, getPopCount(BIRD,      LAYER_ANIMALS), null, initRng);
 
   // Seed aquatic animals on water cells.
   _seedAquatic(SMALL_FISH, LAYER_ANIMALS, getPopCount(SMALL_FISH, LAYER_ANIMALS), initRng);
@@ -187,7 +191,8 @@ function init(seed) {
   prevTotalVeg    = grid.countState(GRASS, LAYER_VEGETATION) + grid.countState(TREE, LAYER_VEGETATION) + grid.countState(LILY, LAYER_VEGETATION);
   prevTotalAnimal = grid.countState(HERBIVORE,  LAYER_ANIMALS) + grid.countState(PREDATOR, LAYER_ANIMALS)
                   + grid.countState(OMNIVORE,   LAYER_ANIMALS)
-                  + grid.countState(SMALL_FISH, LAYER_ANIMALS) + grid.countState(BIG_FISH, LAYER_ANIMALS);
+                  + grid.countState(SMALL_FISH, LAYER_ANIMALS) + grid.countState(BIG_FISH, LAYER_ANIMALS)
+                  + grid.countState(BIRD,       LAYER_ANIMALS);
 
   stats.reset();
   events.reset();
@@ -309,11 +314,12 @@ function tick() {
     grid.countState(OMNIVORE,   LAYER_ANIMALS),
     grid.countState(SMALL_FISH, LAYER_ANIMALS),
     grid.countState(BIG_FISH,   LAYER_ANIMALS),
+    grid.countState(BIRD,       LAYER_ANIMALS),
   ];
   stats.push(counts);
 
   const totalVeg    = counts[0] + counts[1] + counts[2];
-  const totalAnimal = counts[3] + counts[4] + counts[5] + counts[6] + counts[7];
+  const totalAnimal = counts[3] + counts[4] + counts[5] + counts[6] + counts[7] + counts[8];
   if (totalVeg === prevTotalVeg && totalAnimal === prevTotalAnimal) {
     if (++stableTicks >= 5) {
       finished = true;
@@ -342,6 +348,7 @@ function updateStatus(counts) {
     grid.countState(OMNIVORE,   LAYER_ANIMALS),
     grid.countState(SMALL_FISH, LAYER_ANIMALS),
     grid.countState(BIG_FISH,   LAYER_ANIMALS),
+    grid.countState(BIRD,       LAYER_ANIMALS),
   ];
   statusLine.textContent = `Generation: ${generation}`;
 
