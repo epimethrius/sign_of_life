@@ -30,7 +30,9 @@
       "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=40 --pred-cooldown=3)",
       "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=42)",
       "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=42 --runs=60)",
-      "Bash(node scripts/sim-runner.mjs --runs=60)"
+      "Bash(node scripts/sim-runner.mjs --runs=60)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --size=30)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --size=40)"
     ]
   }
 }

@@ -59,6 +59,7 @@ sign_of_life/
 │       ├── herbivore-behavior.js
 │       ├── predator-behavior.js
 │       ├── omnivore-behavior.js
+│       ├── bird-behavior.js
 │       ├── small-fish-behavior.js
 │       ├── big-fish-behavior.js
 │       └── season-engine.js
@@ -117,16 +118,22 @@ Each tick, per animal:
 
 1. **Survival** *(herbivore only)* — if a predator is within 2 cells (Chebyshev):
    - Escape: move to neighbor that maximises Manhattan distance from threat
-   - If cornered: reproduce if cooldown = 0 and adjacent empty cell exists
+   - If cornered: reproduce if cooldown = 0 and adjacent empty cell exists (no veg requirement)
    - Otherwise: fall through
 2. **Seek food** — if energy < ⅔ × `reproThreshold`:
-   - Food at current cell → eat
+   - Food at current cell → eat (kills veg cell)
    - Food elsewhere → move toward nearest food (Manhattan-greedy, ties random)
    - No food anywhere → wander randomly
-3. **Reproduce** — if cooldown = 0 and adjacent empty cell exists
+3. **Reproduce** *(food-coupled)* — if cooldown = 0, energy ≥ `reproThreshold`, AND standing on vegetation:
+   - Place offspring on adjacent empty cell; consume the veg cell as breeding cost
+   - If not on veg: do nothing (breed next tick when food is present)
 4. **Wander or idle** — 60% move randomly, 40% idle
 
 Newborns have their cooldown pre-set so they cannot reproduce immediately.
+
+**Food-coupled breeding rationale:** Requiring vegetation at the breeding site spatially caps
+population to vegetation density. Each breeding event consumes one veg cell, creating a hard
+negative feedback loop that prevents exponential booms without predator pressure.
 
 ---
 
@@ -215,6 +222,30 @@ seed + share UI, rule registry with enable/disable.
 - [x] Grid size selector (triggers re-init, scales population inputs)
 - [x] GitHub Actions → build → GitHub Pages
 
+### M5+ — Ecosystem Expansion & Balance ✓
+*(added after M5)*
+- [x] **Bird entity** — 🦅 `BIRD=6`, `bird-behavior.js`. Aerial predator hunting herbivores (primary) and shore fish (secondary). Ignores terrain energy cost (flies freely). Reproduces only when standing on a TREE cell (nesting constraint). Not hunted by ground predators. Disabled by default (initial pop = 0) — adds predation pressure that is difficult to balance at small populations.
+- [x] **Food-coupled herbivore breeding** — herbivores can only reproduce while standing on vegetation; the veg cell is consumed as breeding cost. This is the primary boom-crash governor: each breeding event removes a food source, creating hard negative feedback without requiring predator pressure. Core timing fix: `energyDecayPerTick 0.5→0.3`, `reproThreshold 16→10`, `reproCooldownDivisor 2→3`.
+- [x] **Balance tuning** — extended lifespans based on headless sim-runner analysis: `herbivore baseLifespan 30→35`, `tree baseLifespan 28→42`. Longer tree lifespan provides a stable food floor after grass collapses from early grazing pressure.
+- [x] **Default grid size 50×50** — stochastic extinction dominates on small grids (20×20: 28% animal collapse; 30×30: 0%). Default raised to 50×50 with proportionally scaled initial populations. Smaller grids remain available in the UI selector.
+
+**Balance status (50×50, 30 runs, 500 ticks):**
+| Metric | Value |
+|---|---|
+| Herb survival to t=500 | ~100% |
+| Animal collapse (all animals gone) | ~0% |
+| Tree survival | ~100% |
+| Grass survival | ~7% (expected — replaced by trees) |
+| Predator/Omnivore survival | 0% (known issue — see below) |
+
+**Known remaining imbalance — predator collapse:**
+Predators and omnivores consistently go extinct (t≈140–200 on 50×50). Root cause: initial
+population (30) is not sufficient to track the herb wave; they peak then crash before the herb
+population stabilises. No Lotka-Volterra oscillation has been observed yet. Next steps:
+- Try `predCooldownDivisor 2→3` (more frequent breeding)
+- Try `predLifespan 20→25` (longer survival window)
+- Consider predator `spawnNearFood` constraint (currently random placement)
+
 ### M6 — Mutations & Adaptation
 - [ ] Heritable trait vectors in SoA `Float32Array` (e.g. speed, energyEfficiency)
 - [ ] Reproduction passes parent traits to offspring ± seeded perturbation
@@ -233,6 +264,7 @@ seed + share UI, rule registry with enable/disable.
 
 ## Backlog / Ideas
 
+- [x] Aerial predator — **🦅 Bird** (`BIRD=6`, `bird-behavior.js`). See M5+ for details.
 - [x] Third animal type — **🦝 Omnivore** (`OMNIVORE=3`, `omnivore-behavior.js`). Eats grass/trees AND herbivores; hunted by predators. Provides predators an alternative prey source when herbivores are scarce, and keeps herbivore booms in check. FLEE_PROB=0.60 (bolder than herbivore).
 - [x] Seasonal pressure events — **Season Engine** (`season-engine.js`, `season-state.js`). Configurable-length seasons (Spring/Summer/Autumn/Winter, default 50 ticks each) cycling via `LAYER_EVENTS`. Effects: vegetation spread ±, lifespan ±, energy decay ×, repro threshold × — all applied per-tick via `getSeasonEffect(key)` imported in spread, aging, and animal behavior rules. Random events: **Drought** (Summer/Autumn, 0.6%/tick, 12-22 ticks) and **Cold Snap** (Autumn/Winter, 0.8%/tick, 8-18 ticks) stack on top of season effects. Season display shown in UI; resets per run in headless runner. Season length exposed as a rule param in the UI.
 - [x] Aquatic food web — **🐟 Small Fish** (`SMALL_FISH=4`, `small-fish-behavior.js`) and **🐠 Big Fish** (`BIG_FISH=5`, `big-fish-behavior.js`). Small fish graze lily pads on water cells; big fish hunt small fish on water cells. Both fish types can be caught via **shore fishing**: land predators and omnivores adjacent to a water cell containing fish kill the fish from shore (no movement, gain `energyFromFish`) — connecting the aquatic and terrestrial food webs without land animals entering water. Seeded via `_seedAquatic`/`seedWater` which passes `baseEnergy`. Fish move only within adjacent WATER cells (`emptyWaterNeighbors` helper in `actions.js`). Both fish appear in the stats table, population chart, cell tooltip, and legend.

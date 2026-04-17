@@ -1,7 +1,7 @@
 {
   "runs":  30,
   "ticks": 500,
-  "size":  20,
+  "size":  50,
 
   "terrain": {
     "water": 15,
@@ -10,14 +10,14 @@
   },
 
   "population": {
-    "grass":       40,
-    "tree":        20,
-    "lily":         8,
-    "herbivore":   15,
-    "predator":     5,
-    "omnivore":     5,
-    "small_fish":  12,
-    "big_fish":     2,
+    "grass":      250,
+    "tree":       125,
+    "lily":        50,
+    "herbivore":   90,
+    "predator":    30,
+    "omnivore":    30,
+    "small_fish":  75,
+    "big_fish":    12,
     "bird":         0
   },
 

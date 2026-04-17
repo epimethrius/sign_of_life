@@ -75,7 +75,7 @@ function getPopCount(typeId, layer) {
 }
 
 // ── Core objects ──────────────────────────────────────────────────────────────
-let grid          = new Grid(10, 10);
+let grid          = new Grid(parseInt(gridSizeEl.value, 10), parseInt(gridSizeEl.value, 10));
 let webglRenderer = new WebGLRenderer(canvas, grid);
 let iconRenderer  = new Renderer(iconCanvas, grid);
 _applyEntityIcons();
