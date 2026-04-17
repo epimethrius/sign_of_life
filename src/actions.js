@@ -29,22 +29,25 @@ export function waterProximityBonus(grid, x, y) {
 
 /**
  * Returns the [x, y] of the nearest cell on foodLayer containing one of
- * foodTypes, using Manhattan distance. Returns null if none exists.
+ * foodTypes, using Manhattan distance. Returns null if none exists within
+ * maxRadius (defaults to full-grid scan).
  *
  * @param {Grid}     grid
  * @param {number}   x
  * @param {number}   y
  * @param {number}   foodLayer
  * @param {number[]} foodTypes
+ * @param {number}   [maxRadius=Infinity]
  * @returns {[number, number] | null}
  */
-export function nearestFoodCell(grid, x, y, foodLayer, foodTypes) {
+export function nearestFoodCell(grid, x, y, foodLayer, foodTypes, maxRadius = Infinity) {
   let bestDist = Infinity;
   let bestPos  = null;
   for (let fy = 0; fy < grid.height; fy++) {
     for (let fx = 0; fx < grid.width; fx++) {
       if (!foodTypes.includes(grid.get(fx, fy, foodLayer))) continue;
       const dist = Math.abs(fx - x) + Math.abs(fy - y);
+      if (dist > maxRadius) continue;
       if (dist < bestDist) { bestDist = dist; bestPos = [fx, fy]; }
     }
   }

@@ -9,7 +9,8 @@
       "Bash(node -e \"const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('scripts/debug.json'\\)\\); console.log\\(JSON.stringify\\(Object.keys\\(d\\)\\)\\); console.log\\(JSON.stringify\\(Object.keys\\(d.runs[0]\\)\\)\\)\")",
       "Bash(npm run *)",
       "Bash(curl -s http://localhost:5174/)",
-      "Bash(node scripts/sim-runner.mjs --runs=10 --ticks=200)"
+      "Bash(node scripts/sim-runner.mjs --runs=10 --ticks=200)",
+      "Bash(node scripts/run-sim.js)"
     ]
   }
 }

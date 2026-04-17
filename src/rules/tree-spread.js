@@ -15,7 +15,7 @@ export default {
     name:            'Tree',
     icon:            '🌲',
     description:     'Slow-growing. Spreads onto empty cells and replaces grass.',
-    baseLifespan:    16,    // ticks — adjustable in UI
+    baseLifespan:    28,    // ticks — adjustable in UI
     lifespanVariance: 0.15, // ±15% — adjustable in UI
   },
 

@@ -108,8 +108,8 @@ export default {
             grid.kill(fx, fy, al);
             // No movement — predator stays on land.
           } else {
-          // Move toward nearest land prey (or shore if fish is the only option).
-          const nearest = nearestFoodCell(grid, x, y, al, PREY_TYPES);
+          // Move toward nearest land prey (limited radius — creates prey refuges).
+          const nearest = nearestFoodCell(grid, x, y, al, PREY_TYPES, 4);
           const targets = emptyAnimalNeighbors(grid, x, y, al);
           if (nearest && targets.length > 0) {
             const [fx, fy] = nearest;

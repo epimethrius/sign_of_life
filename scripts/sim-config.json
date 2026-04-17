@@ -10,23 +10,23 @@
   },
 
   "population": {
-    "grass":       20,
-    "tree":        12,
+    "grass":       40,
+    "tree":        20,
     "lily":         8,
-    "herbivore":   40,
-    "predator":     2,
-    "omnivore":     4,
+    "herbivore":   15,
+    "predator":     0,
+    "omnivore":     0,
     "small_fish":  12,
     "big_fish":     2
   },
 
   "rules": {
-    "grassLifespan":        15,
-    "treeLifespan":        22,
-    "herbLifespan":        20,
+    "grassLifespan":        16,
+    "treeLifespan":        28,
+    "herbLifespan":        30,
     "predLifespan":        20,
-    "herbCooldownDivisor":  3,
-    "predCooldownDivisor":  1
+    "herbCooldownDivisor":  2,
+    "predCooldownDivisor":  2
   },
 
   "seed":   null,

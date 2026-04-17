@@ -204,7 +204,7 @@ export default {
         }
 
         // 1d. Move toward nearest food — prefer closer of herbivore vs vegetation.
-        const nearestHerb = nearestFoodCell(grid, x, y, al, [HERBIVORE]);
+        const nearestHerb = nearestFoodCell(grid, x, y, al, [HERBIVORE], 4);
         const nearestVeg  = nearestFoodCell(grid, x, y, LAYER_VEGETATION, FOOD_TYPES);
 
         let target = null;
