@@ -14,7 +14,7 @@
     "tree":       125,
     "lily":        50,
     "herbivore":   90,
-    "predator":    30,
+    "predator":    10,
     "omnivore":    30,
     "small_fish":  75,
     "big_fish":    12,
@@ -27,7 +27,7 @@
     "herbLifespan":        35,
     "predLifespan":        35,
     "herbCooldownDivisor":  3,
-    "predCooldownDivisor":  3
+    "predCooldownDivisor":  2
   },
 
   "seed":   null,

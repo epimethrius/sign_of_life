@@ -43,8 +43,8 @@ import { effectOf } from '../terrains/index.js';
 import { getSeasonEffect } from '../season-state.js';
 
 const FOOD_TYPES    = [GRASS, TREE];
-const DANGER_RADIUS = 2;   // Chebyshev distance at which a predator is detected
-const FLEE_PROB     = 0.60; // Omnivores are bolder — lower flee chance than herbivores
+const DANGER_RADIUS = 2;
+const FLEE_PROB     = 0.60;
 
 /** Returns [x, y] of the nearest predator within DANGER_RADIUS, or null. */
 function nearestThreat(grid, x, y) {
@@ -73,18 +73,18 @@ export default {
     layer:                LAYER_ANIMALS,
     name:                 'Omnivore',
     icon:                 '🦝',
-    description:          'Eats plants and herbivores. Hunted by predators.',
-    baseLifespan:         20,
+    description:          'Eats shore fish and vegetation. Not hunted by predators.',
+    baseLifespan:         35,
     lifespanVariance:     0.25,
-    baseEnergy:           14,
-    energyDecayPerTick:   0.65,
-    energyFromGrass:      2,
-    energyFromTree:       2,
-    energyFromHerbivore:  10,
-    energyFromFish:       6,   // energy gained from shore fishing (either fish type)
-    reproThreshold:       14,
-    reproCost:            6,
-    reproCooldownDivisor: 2,
+    baseEnergy:           12,
+    energyDecayPerTick:   0.35,
+    energyFromGrass:      6,
+    energyFromTree:       6,
+    energyFromHerbivore:  0,
+    energyFromFish:       10,
+    reproThreshold:       10,
+    reproCost:            5,
+    reproCooldownDivisor: 3,
     spawnNearFood: { layer: LAYER_VEGETATION, types: FOOD_TYPES },
   },
 
@@ -167,22 +167,9 @@ export default {
         }
       }
 
-      // ── 1. Hungry: seek food ──────────────────────────────────────────────
+      // ── 1. Hungry: shore fish then vegetation ────────────────────────────
       if (energy < hungerThreshold) {
-        // 1a. Eat adjacent herbivore (move into its cell).
-        const adjHerb = grid.spreadTargets(x, y, al, [HERBIVORE])
-          .filter(([nx, ny]) => grid.get(nx, ny, al) === HERBIVORE);
-        if (adjHerb.length > 0) {
-          const [nx, ny] = adjHerb[Math.floor(rng() * adjHerb.length)];
-          grid.energy[al][i] += e.energyFromHerbivore;
-          events.log('death-eaten', HERBIVORE, al);
-          events.log('eat-animal',  OMNIVORE,  al);
-          grid.move(x, y, nx, ny, al);
-          movedThisTick.add(ny * grid.width + nx);
-          continue;
-        }
-
-        // 1b. Shore fishing: grab a fish from an adjacent water cell (no movement).
+        // 1a. Shore fishing (preferred — higher energy).
         const fishCells = shoreFishTargets(grid, x, y, al);
         if (fishCells.length > 0) {
           const [fx, fy] = fishCells[Math.floor(rng() * fishCells.length)];
@@ -194,7 +181,7 @@ export default {
           continue;
         }
 
-        // 1c. Eat vegetation at current cell.
+        // 1b. Eat vegetation at current cell.
         const vegType = grid.get(x, y, LAYER_VEGETATION);
         if (vegType === GRASS || vegType === TREE) {
           grid.energy[al][i] += vegType === GRASS ? e.energyFromGrass : e.energyFromTree;
@@ -203,21 +190,10 @@ export default {
           continue;
         }
 
-        // 1d. Move toward nearest food — prefer closer of herbivore vs vegetation.
-        const nearestHerb = nearestFoodCell(grid, x, y, al, [HERBIVORE], 4);
-        const nearestVeg  = nearestFoodCell(grid, x, y, LAYER_VEGETATION, FOOD_TYPES);
-
-        let target = null;
-        if (nearestHerb && nearestVeg) {
-          const dH = Math.abs(nearestHerb[0] - x) + Math.abs(nearestHerb[1] - y);
-          const dV = Math.abs(nearestVeg[0]  - x) + Math.abs(nearestVeg[1]  - y);
-          target = dH <= dV ? nearestHerb : nearestVeg;
-        } else {
-          target = nearestHerb ?? nearestVeg;
-        }
-
-        if (target && targets.length > 0) {
-          const [fx, fy] = target;
+        // 1c. Move toward nearest food — prefer fish over vegetation.
+        const nearestVeg = nearestFoodCell(grid, x, y, LAYER_VEGETATION, FOOD_TYPES);
+        if (nearestVeg && targets.length > 0) {
+          const [fx, fy] = nearestVeg;
           let bestDist = Infinity;
           for (const [nx, ny] of targets) {
             const d = Math.abs(nx - fx) + Math.abs(ny - fy);
@@ -234,9 +210,10 @@ export default {
           movedThisTick.add(ny * grid.width + nx);
         }
 
-      // ── 2. Reproduce ─────────────────────────────────────────────────────
+      // ── 2. Reproduce (food-coupled) ───────────────────────────────────────
       } else if (grid.reproCooldown[al][i] === 0 && energy >= reproThreshEff) {
-        if (targets.length > 0) {
+        const vegHere = grid.get(x, y, LAYER_VEGETATION);
+        if (targets.length > 0 && (vegHere === GRASS || vegHere === TREE)) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
@@ -244,6 +221,7 @@ export default {
           grid.energy[al][i] -= e.reproCost;
           grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
           grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
+          grid.kill(x, y, LAYER_VEGETATION);
           events.log('birth', OMNIVORE, al);
         }
 

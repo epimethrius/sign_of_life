@@ -43,7 +43,17 @@
       "Bash(node scripts/sim-runner.mjs --pred-cooldown=4 --pred-lifespan=30)",
       "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=40)",
       "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=45)",
-      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=35 --runs=60)"
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=35 --runs=60)",
+      "Bash(node scripts/sim-runner.mjs --runs=30 --pop-omnivore=10)",
+      "Bash(node scripts/sim-runner.mjs --runs=30 --pop-omnivore=60)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pred-cooldown=4)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pred-lifespan=40)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-predator=10)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-predator=15)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-predator=10 --pred-cooldown=2)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-predator=10 --pred-lifespan=45)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-predator=10 --pred-cooldown=2 --pop-omnivore=15)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-predator=10 --pred-cooldown=2 --pop-omnivore=10)"
     ]
   }
 }

@@ -3,8 +3,8 @@ import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actio
 import { effectOf } from '../terrains/index.js';
 import { getSeasonEffect } from '../season-state.js';
 
-// Predators hunt herbivores and omnivores on land.
-const PREY_TYPES  = [HERBIVORE, OMNIVORE];
+// Predators hunt herbivores only — omnivores occupy the coastal forager niche.
+const PREY_TYPES  = [HERBIVORE];
 // Both fish types can be caught via shore fishing.
 const FISH_TYPES  = [SMALL_FISH, BIG_FISH];
 
@@ -39,7 +39,7 @@ export default {
     energyFromFish:       8,   // energy gained from shore fishing (either fish type)
     reproThreshold:       20,
     reproCost:            10,
-    reproCooldownDivisor: 3,
+    reproCooldownDivisor: 2,
     spawnNearFood: { layer: LAYER_ANIMALS, types: PREY_TYPES },
   },
 
