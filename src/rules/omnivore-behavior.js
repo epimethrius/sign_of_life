@@ -26,7 +26,7 @@ import {
 } from '../grid.js';
 import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
 
-const FISH_TYPES = [SMALL_FISH, BIG_FISH];
+const FISH_TYPES = [SMALL_FISH];
 
 /** Returns [x,y] pairs of adjacent WATER cells that contain a fish. */
 function shoreFishTargets(grid, x, y, al) {

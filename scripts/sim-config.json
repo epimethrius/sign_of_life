@@ -16,8 +16,8 @@
     "herbivore":   90,
     "predator":    10,
     "omnivore":    30,
-    "small_fish":  75,
-    "big_fish":    12,
+    "small_fish": 200,
+    "big_fish":     5,
     "bird":        10
   },
 

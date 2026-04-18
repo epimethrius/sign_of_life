@@ -57,7 +57,13 @@
       "Bash(node scripts/sim-runner.mjs --runs=60 --pop-bird=10)",
       "Bash(node scripts/sim-runner.mjs --runs=60 --pop-bird=5)",
       "Bash(node scripts/sim-runner.mjs --runs=60 --pop-bird=3)",
-      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-bird=20)"
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-bird=20)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-small-fish=120)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-small-fish=150)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-small-fish=200)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-big-fish=5)",
+      "Bash(node scripts/sim-runner.mjs --runs=60 --pop-small-fish=200 --pop-big-fish=5)",
+      "Bash(node scripts/sim-runner.mjs --runs=100)"
     ]
   }
 }

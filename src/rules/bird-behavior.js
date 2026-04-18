@@ -19,12 +19,12 @@ import {
   BIRD, HERBIVORE,
   SMALL_FISH, BIG_FISH,
   LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN,
-  WATER, TREE,
+  WATER, TREE, GRASS,
 } from '../grid.js';
 import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
 import { getSeasonEffect } from '../season-state.js';
 
-const FISH_TYPES = [SMALL_FISH, BIG_FISH];
+const FISH_TYPES = [SMALL_FISH];
 const PREY_TYPES = [HERBIVORE];
 
 /** Returns [x,y] pairs of adjacent WATER cells that contain a fish. */
@@ -138,7 +138,9 @@ export default {
 
       // ── 2. Reproduce — only when nesting in a TREE ────────────────────────────
       } else if (grid.reproCooldown[al][i] === 0 && energy >= reproThreshEff) {
-        if (targets.length > 0 && grid.get(x, y, LAYER_VEGETATION) === TREE) {
+        const vegHere = grid.get(x, y, LAYER_VEGETATION);
+        const onNestSite = vegHere === TREE || vegHere === GRASS;
+        if (targets.length > 0 && onNestSite) {
           const [nx, ny] = targets[Math.floor(rng() * targets.length)];
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
@@ -148,10 +150,23 @@ export default {
           grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
           events.log('birth', BIRD, al);
         } else if (targets.length > 0) {
-          // Not on a tree — wander (may reach a tree next tick).
-          const [nx, ny] = targets[Math.floor(rng() * targets.length)];
-          grid.move(x, y, nx, ny, al);
-          movedThisTick.add(ny * grid.width + nx);
+          // Not on a nest site — move toward nearest tree.
+          const nearestTree = nearestFoodCell(grid, x, y, LAYER_VEGETATION, [TREE, GRASS], 8);
+          if (nearestTree) {
+            const [fx, fy] = nearestTree;
+            let best = targets[0], bestD = Infinity;
+            for (const [nx, ny] of targets) {
+              const d = Math.abs(nx - fx) + Math.abs(ny - fy);
+              if (d < bestD) { bestD = d; best = [nx, ny]; }
+            }
+            const [nx, ny] = best;
+            grid.move(x, y, nx, ny, al);
+            movedThisTick.add(ny * grid.width + nx);
+          } else {
+            const [nx, ny] = targets[Math.floor(rng() * targets.length)];
+            grid.move(x, y, nx, ny, al);
+            movedThisTick.add(ny * grid.width + nx);
+          }
         }
 
       // ── 3. Wander or idle ─────────────────────────────────────────────────────

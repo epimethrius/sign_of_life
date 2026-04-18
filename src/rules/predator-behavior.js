@@ -6,7 +6,7 @@ import { getSeasonEffect } from '../season-state.js';
 // Predators hunt herbivores only — omnivores occupy the coastal forager niche.
 const PREY_TYPES  = [HERBIVORE];
 // Both fish types can be caught via shore fishing.
-const FISH_TYPES  = [SMALL_FISH, BIG_FISH];
+const FISH_TYPES  = [SMALL_FISH];
 
 /** Returns [x,y] pairs of adjacent WATER cells that contain a fish. */
 function shoreFishTargets(grid, x, y, al) {
