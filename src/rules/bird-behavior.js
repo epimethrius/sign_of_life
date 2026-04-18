@@ -49,16 +49,16 @@ export default {
     layer:                LAYER_ANIMALS,
     name:                 'Bird',
     icon:                 '🦅',
-    description:          'Aerial hunter. Eats herbivores and fish. Nests only in trees.',
-    baseLifespan:         25,
+    description:          'Seabird. Eats only shore fish. Nests only in trees.',
+    baseLifespan:         35,
     lifespanVariance:     0.25,
     baseEnergy:           18,
-    energyDecayPerTick:   0.8,
+    energyDecayPerTick:   0.5,
     energyFromHerbivore:  12,
-    energyFromFish:       8,
-    reproThreshold:       16,
+    energyFromFish:       12,
+    reproThreshold:       14,
     reproCost:            7,
-    reproCooldownDivisor: 2,
+    reproCooldownDivisor: 3,
     spawnNearFood:        null,
   },
 
@@ -103,23 +103,9 @@ export default {
       const energy  = grid.energy[al][i];
       const targets = emptyAnimalNeighbors(grid, x, y, al);
 
-      // ── 1. Hungry: seek prey ──────────────────────────────────────────────────
+      // ── 1. Hungry: fish first, herbs as fallback ─────────────────────────────
       if (energy < hungerThreshold) {
-        // 1a. Eat adjacent herbivore — move into its cell.
-        const prey = grid.spreadTargets(x, y, al, PREY_TYPES)
-          .filter(([nx, ny]) => PREY_TYPES.includes(grid.get(nx, ny, al)));
-
-        if (prey.length > 0) {
-          const [nx, ny] = prey[Math.floor(rng() * prey.length)];
-          grid.energy[al][i] += e.energyFromHerbivore;
-          events.log('death-eaten', HERBIVORE, al);
-          events.log('eat-animal',  BIRD,      al);
-          grid.move(x, y, nx, ny, al);
-          movedThisTick.add(ny * grid.width + nx);
-          continue;
-        }
-
-        // 1b. Shore fishing (no movement — grab fish from adjacent water).
+        // 1a. Shore fishing (preferred — keeps birds off the herbivore food chain).
         const fishCells = shoreFishTargets(grid, x, y, al);
         if (fishCells.length > 0) {
           const [fx, fy] = fishCells[Math.floor(rng() * fishCells.length)];
@@ -131,8 +117,8 @@ export default {
           continue;
         }
 
-        // 1c. Move toward nearest prey (birds spot from above — wider radius).
-        const nearest = nearestFoodCell(grid, x, y, al, PREY_TYPES, 6);
+        // 1b. Move toward nearest fish.
+        const nearest = nearestFoodCell(grid, x, y, al, FISH_TYPES, 6);
         if (nearest && targets.length > 0) {
           const [fx, fy] = nearest;
           let bestDist = Infinity;

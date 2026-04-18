@@ -34,14 +34,14 @@ export default {
     name:                 'Small Fish',
     icon:                 '🐟',
     description:          'Aquatic herbivore. Eats lily pads. Prey for big fish and shore hunters.',
-    baseLifespan:         10,
+    baseLifespan:         18,
     lifespanVariance:     0.25,
     baseEnergy:           8,
-    energyDecayPerTick:   0.5,
+    energyDecayPerTick:   0.3,
     energyFromLily:       6,
     reproThreshold:       8,
     reproCost:            5,
-    reproCooldownDivisor: 3,
+    reproCooldownDivisor: 4,
     spawnNearFood:        null, // seeded via _seedAquatic on water cells
   },
 

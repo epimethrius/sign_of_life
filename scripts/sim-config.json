@@ -18,7 +18,7 @@
     "omnivore":    30,
     "small_fish":  75,
     "big_fish":    12,
-    "bird":         0
+    "bird":        10
   },
 
   "rules": {
