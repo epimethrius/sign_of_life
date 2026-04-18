@@ -30,7 +30,8 @@ A browser-based explorer for cellular automata and ecosystem simulations.
 ```
 sign_of_life/
 ├── index.html                   # Entry point — canvas + UI shell
-├── vite.config.js               # base='./', version/commit injection
+├── vite.config.js               # base='./', version read from package.json, commit injection
+├── entities.json                # Standalone entity library — all species params + food web
 ├── .github/workflows/deploy.yml # CI: build → GitHub Pages on push to main
 ├── src/
 │   ├── main.js                  # Wires grid, renderer, loop, registries, UI
@@ -39,7 +40,7 @@ sign_of_life/
 │   ├── loop.js                  # setTimeout tick loop, manual/auto mode, delay
 │   ├── rng.js                   # Seeded PRNG (mulberry32)
 │   ├── actions.js               # pickAction, computeLifespan, waterProximityBonus,
-│   │                            #   nearestFoodCell, emptyAnimalNeighbors
+│   │                            #   nearestFoodCell, emptyAnimalNeighbors, emptyWaterNeighbors
 │   ├── stats.js                 # Circular buffer for per-tick population snapshots
 │   ├── events.js                # Per-tick EventLog; rules call events.log(type,…)
 │   ├── serializer.js            # World encode/decode → base64url share string (v4)
@@ -63,7 +64,10 @@ sign_of_life/
 │       ├── small-fish-behavior.js
 │       ├── big-fish-behavior.js
 │       └── season-engine.js
-├── package.json
+├── scripts/
+│   ├── sim-runner.mjs           # Headless batch runner (30+ seeds, survival statistics)
+│   └── sim-config.json          # Default parameters for the headless runner
+├── package.json                 # version: 1.0.0 — single source of truth for app version
 ├── PLAN.md
 └── LICENSE
 ```
@@ -92,7 +96,7 @@ Adding a new per-entity property = one new array.
 |---|---|---|
 | 0 | `LAYER_TERRAIN` | soil, sand, water, rock — static after init |
 | 1 | `LAYER_VEGETATION` | grass, tree, lily — one entity per cell |
-| 2 | `LAYER_ANIMALS` | herbivore, predator — one entity per cell |
+| 2 | `LAYER_ANIMALS` | herbivore, predator, omnivore, fish, bird — one entity per cell |
 | 3 | `LAYER_EVENTS` | reserved for fire, flood, drought |
 
 ---
@@ -112,28 +116,76 @@ Rules query via `effectOf(typeId, key)`.
 
 ---
 
+## Food Web
+
+```
+lily ──────► small fish ──────► big fish
+                │
+                ▼
+predator ◄── herbivore ◄── grass/tree ──► omnivore
+    │                                        ▲
+    └──── shore fish (small fish) ───────────┘
+bird ────► shore fish (small fish)
+```
+
+| Species | Eats | Eaten by |
+|---|---|---|
+| grass | — | herbivore, omnivore |
+| tree | — | herbivore, omnivore |
+| lily | — | small fish |
+| herbivore | grass, tree | predator, bird |
+| predator | herbivore, small fish (shore) | — |
+| omnivore | grass, tree, small fish (shore) | predator |
+| small fish | lily | big fish, predator (shore), omnivore (shore), bird (shore) |
+| big fish | small fish | — |
+| bird | small fish (shore) | — |
+
+**Shore fishing:** land animals (predator, omnivore, bird) adjacent to a water cell containing small fish kill the fish from land without entering the water. This connects the aquatic and terrestrial food webs.
+
+---
+
 ## Animal Behaviour — Priority Order
 
 Each tick, per animal:
 
-1. **Survival** *(herbivore only)* — if a predator is within 2 cells (Chebyshev):
+1. **Survival** *(herbivore + omnivore)* — if a predator is within 2 cells (Chebyshev):
    - Escape: move to neighbor that maximises Manhattan distance from threat
-   - If cornered: reproduce if cooldown = 0 and adjacent empty cell exists (no veg requirement)
+   - If cornered: reproduce if cooldown = 0 and adjacent empty cell exists
    - Otherwise: fall through
 2. **Seek food** — if energy < ⅔ × `reproThreshold`:
-   - Food at current cell → eat (kills veg cell)
-   - Food elsewhere → move toward nearest food (Manhattan-greedy, ties random)
+   - Food at current cell → eat
+   - Adjacent prey → eat and move into cell
+   - Shore fish in adjacent water cell → eat (no movement for shore fishing)
+   - Food elsewhere → move toward nearest food source
    - No food anywhere → wander randomly
-3. **Reproduce** *(food-coupled)* — if cooldown = 0, energy ≥ `reproThreshold`, AND standing on vegetation:
+3. **Reproduce** *(food-coupled for herbivore and omnivore)* — if cooldown = 0, energy ≥ `reproThreshold`, AND standing on vegetation:
    - Place offspring on adjacent empty cell; consume the veg cell as breeding cost
-   - If not on veg: do nothing (breed next tick when food is present)
-4. **Wander or idle** — 60% move randomly, 40% idle
+   - If not on veg: move toward nearest vegetation instead
+4. **Wander or idle** — 60–70% move randomly, remainder idle
 
 Newborns have their cooldown pre-set so they cannot reproduce immediately.
 
 **Food-coupled breeding rationale:** Requiring vegetation at the breeding site spatially caps
 population to vegetation density. Each breeding event consumes one veg cell, creating a hard
 negative feedback loop that prevents exponential booms without predator pressure.
+
+---
+
+## Entity Parameters (current tuned values)
+
+All parameters are also documented in `entities.json` (see below).
+
+| Species | baseLifespan | decay/tick | reproThreshold | reproCost | cooldownDiv |
+|---|---|---|---|---|---|
+| grass | 16 | — | — | — | — |
+| tree | 42 | — | — | — | — |
+| lily | 6 | — | — | — | — |
+| herbivore | 35 | 0.30 | 10 | 5 | 3 |
+| predator | 35 | 0.80 | 20 | 10 | 2 |
+| omnivore | 35 | 0.35 | 10 | 5 | 3 |
+| small fish | 18 | 0.30 | 8 | 5 | 4 |
+| big fish | 40 | 0.30 | 12 | 8 | 2 |
+| bird | 35 | 0.50 | 14 | 7 | 3 |
 
 ---
 
@@ -153,12 +205,35 @@ Encoded as base64url. `age[]` is not serialized (resets to 0 on load).
 
 ---
 
+## entities.json — Standalone Entity Library
+
+`entities.json` (project root) is a self-contained description of all 9 species and their
+relationships, independent of the simulation engine. Its purpose is **reusability**: any
+application — a game, a visualisation tool, a data dashboard, a documentation site — can
+read this file and know the full entity model without importing or running the simulation.
+
+Contents:
+- **`layers`** and **`typeIds`** — numeric constants matching `src/grid.js`
+- **`foodWeb`** — for each species: what it eats and what eats it
+- **`entities`** — per species: layer, typeId, terrain constraints, tuned `params` (all numeric values from the behavior files), and a `behavior` summary (logic description, not code)
+- **`recommendedConfig`** — initial populations and terrain percentages for stable runs at 50×50, with observed survival rates from 30-run headless analysis
+
+The file has a `version` field and a `$schema` stub for forward compatibility.
+**It must be kept in sync with the behavior files** whenever entity parameters are retuned.
+
+---
+
 ## Development conventions
+
+### Version management
+`package.json` is the single source of truth for the application version. `vite.config.js`
+reads `version` from `package.json` at build time and injects it as `__APP_VERSION__`
+(displayed under the title in the UI). Bump `package.json` only — do not edit `vite.config.js`.
 
 ### Default parameter changes
 Whenever a default value is changed in any rule file (`src/rules/*.js`) or in the
-UI (`index.html`), **`scripts/sim-config.json` must be updated to match** in the
-same commit.
+UI (`index.html`), **both `scripts/sim-config.json` and `entities.json` must be updated
+to match** in the same commit.
 
 `sim-config.json` is the single source of truth for what "default run" means in
 the headless runner. Letting it drift from the source files makes batch results
@@ -224,27 +299,66 @@ seed + share UI, rule registry with enable/disable.
 
 ### M5+ — Ecosystem Expansion & Balance ✓
 *(added after M5)*
-- [x] **Bird entity** — 🦅 `BIRD=6`, `bird-behavior.js`. Aerial predator hunting herbivores (primary) and shore fish (secondary). Ignores terrain energy cost (flies freely). Reproduces only when standing on a TREE cell (nesting constraint). Not hunted by ground predators. Disabled by default (initial pop = 0) — adds predation pressure that is difficult to balance at small populations.
-- [x] **Food-coupled herbivore breeding** — herbivores can only reproduce while standing on vegetation; the veg cell is consumed as breeding cost. This is the primary boom-crash governor: each breeding event removes a food source, creating hard negative feedback without requiring predator pressure. Core timing fix: `energyDecayPerTick 0.5→0.3`, `reproThreshold 16→10`, `reproCooldownDivisor 2→3`.
-- [x] **Balance tuning** — extended lifespans based on headless sim-runner analysis: `herbivore baseLifespan 30→35`, `tree baseLifespan 28→42`. Longer tree lifespan provides a stable food floor after grass collapses from early grazing pressure.
-- [x] **Default grid size 50×50** — stochastic extinction dominates on small grids (20×20: 28% animal collapse; 30×30: 0%). Default raised to 50×50 with proportionally scaled initial populations. Smaller grids remain available in the UI selector.
 
-**Balance status (50×50, 30 runs, 500 ticks):**
-| Metric | Value |
-|---|---|
-| Herb survival to t=500 | ~100% |
-| Animal collapse (all animals gone) | ~0% |
-| Tree survival | ~100% |
-| Grass survival | ~7% (expected — replaced by trees) |
-| Predator/Omnivore survival | 0% (known issue — see below) |
+- [x] **Omnivore** (`OMNIVORE=3`, `omnivore-behavior.js`) — coastal forager. Eats shore fish (preferred) and vegetation. Flees predators (FLEE_PROB=0.60). Food-coupled breeding (must stand on GRASS or TREE; veg consumed). Does **not** eat herbivores — this keeps omnivore out of direct competition with predators and prevents predator starvation.
+- [x] **Bird** (`BIRD=6`, `bird-behavior.js`) — aerial predator. Food priority: shore fish first, then moves toward nearest fish. Ignores terrain energy cost (flies freely). Breeds only when standing on GRASS or TREE; if not on a nest site, moves toward nearest tree/grass. Not hunted by ground predators.
+- [x] **Aquatic food web** — lily → small fish → big fish. Shore fishing connects aquatic and terrestrial webs: predators and omnivores and birds all shore-fish small fish from adjacent water cells. Big fish eat only small fish in water; no land animal can catch big fish.
+- [x] **Food-coupled breeding** — herbivores and omnivores can only reproduce while standing on vegetation; the veg cell is consumed. Hard negative feedback loop preventing exponential booms.
+- [x] **Balance tuning** — see Entity Parameters table above and the grid-size analysis below.
+- [x] **Default grid 50×50** — stochastic extinction dominates small grids; 50×50 is the functional minimum for stable multi-species dynamics.
+- [x] **Version source of truth** — `vite.config.js` now reads version from `package.json` instead of a hardcoded string. Current version: **1.0.0**.
+- [x] **Entity library** — `entities.json` at project root. Standalone JSON describing all 9 species (params, food-web, behavior summaries, recommended config). Reusable by external applications without the simulation engine.
 
-**Known remaining imbalance — predator collapse:**
-Predators and omnivores consistently go extinct (t≈140–200 on 50×50). Root cause: initial
-population (30) is not sufficient to track the herb wave; they peak then crash before the herb
-population stabilises. No Lotka-Volterra oscillation has been observed yet. Next steps:
-- Try `predCooldownDivisor 2→3` (more frequent breeding)
-- Try `predLifespan 20→25` (longer survival window)
-- Consider predator `spawnNearFood` constraint (currently random placement)
+---
+
+## Balance Results (30 runs, 500 ticks)
+
+### 50×50 (default config)
+
+| Species | Survival | Notes |
+|---|---|---|
+| 🌿 grass | ~7% | Expected — outcompeted by trees |
+| 🌲 tree | ~100% | Stable long-term floor |
+| 🪷 lily | ~100% | |
+| 🐇 herbivore | ~90% | |
+| 🦊 predator | ~18% | Weakest species — see below |
+| 🦝 omnivore | ~76% | |
+| 🐟 small fish | ~100% | |
+| 🐠 big fish | ~80% | |
+| 🦅 bird | ~91% | |
+| Animal collapse | ~0% | |
+
+### Grid size comparison (populations scaled proportionally)
+
+| Grid | Herb | Pred | Omni | S.Fish | B.Fish | Bird | Collapse |
+|---|---|---|---|---|---|---|---|
+| 10×10 | 50% | 0% | 0% | 0% | 0% | 0% | 50% |
+| 20×20 | 62% | 28% | 32% | 100% | 0% | 13% | 0% |
+| 50×50 | ~90% | ~18% | ~76% | ~100% | ~80% | ~91% | 0% |
+| 75×75 | 100% | 30% | 97% | 100% | 100% | 100% | 0% |
+| 100×100 | 100% | 37% | 97% | 100% | 100% | 100% | 0% |
+
+Key observations:
+- **10×10** is too small for any meaningful multi-species dynamics.
+- **20×20** supports land animals but big fish needs more water area (15% of 400 = 60 cells is insufficient).
+- **50×50 is the practical minimum** for all 9 species. Big fish and bird become viable here.
+- **75×75 and 100×100** improve most species significantly. Predator still struggles but reaches 30–37%.
+- **Grass collapses at large grids** (3–7%) because trees outcompete it over 500 ticks — this is expected and ecologically realistic. It does not count as a system failure since grass regrows from spread.
+- **Predator is consistently the weakest species** across all grid sizes. The current herb-only diet, high energy decay (0.8/tick), and small starting population (10 at 50×50) limit recovery after a population dip.
+
+### Known remaining imbalance — predator
+
+Predators survive in only 18–37% of runs depending on grid size. Root causes:
+- High energy decay (0.8/tick) requires frequent feeding
+- Starting population of 10 is too small to track the initial herb surge reliably
+- Herbivore-only diet means prey scarcity directly kills predators with no fallback
+
+Candidate next steps (not yet tried):
+- `predLifespan 35→40` — longer survival window per individual
+- `predCooldownDivisor 2→3` — more breeding events per lifetime
+- Larger starting predator population at 50×50 (try 15–20)
+
+---
 
 ### M6 — Mutations & Adaptation
 - [ ] Heritable trait vectors in SoA `Float32Array` (e.g. speed, energyEfficiency)
@@ -265,9 +379,10 @@ population stabilises. No Lotka-Volterra oscillation has been observed yet. Next
 ## Backlog / Ideas
 
 - [x] Aerial predator — **🦅 Bird** (`BIRD=6`, `bird-behavior.js`). See M5+ for details.
-- [x] Third animal type — **🦝 Omnivore** (`OMNIVORE=3`, `omnivore-behavior.js`). Eats grass/trees AND herbivores; hunted by predators. Provides predators an alternative prey source when herbivores are scarce, and keeps herbivore booms in check. FLEE_PROB=0.60 (bolder than herbivore).
+- [x] Third animal type — **🦝 Omnivore** (`OMNIVORE=3`, `omnivore-behavior.js`). Coastal forager eating shore fish and vegetation. Hunted by predators. Food-coupled breeding.
 - [x] Seasonal pressure events — **Season Engine** (`season-engine.js`, `season-state.js`). Configurable-length seasons (Spring/Summer/Autumn/Winter, default 50 ticks each) cycling via `LAYER_EVENTS`. Effects: vegetation spread ±, lifespan ±, energy decay ×, repro threshold × — all applied per-tick via `getSeasonEffect(key)` imported in spread, aging, and animal behavior rules. Random events: **Drought** (Summer/Autumn, 0.6%/tick, 12-22 ticks) and **Cold Snap** (Autumn/Winter, 0.8%/tick, 8-18 ticks) stack on top of season effects. Season display shown in UI; resets per run in headless runner. Season length exposed as a rule param in the UI.
-- [x] Aquatic food web — **🐟 Small Fish** (`SMALL_FISH=4`, `small-fish-behavior.js`) and **🐠 Big Fish** (`BIG_FISH=5`, `big-fish-behavior.js`). Small fish graze lily pads on water cells; big fish hunt small fish on water cells. Both fish types can be caught via **shore fishing**: land predators and omnivores adjacent to a water cell containing fish kill the fish from shore (no movement, gain `energyFromFish`) — connecting the aquatic and terrestrial food webs without land animals entering water. Seeded via `_seedAquatic`/`seedWater` which passes `baseEnergy`. Fish move only within adjacent WATER cells (`emptyWaterNeighbors` helper in `actions.js`). Both fish appear in the stats table, population chart, cell tooltip, and legend.
+- [x] Aquatic food web — **🐟 Small Fish** (`SMALL_FISH=4`) and **🐠 Big Fish** (`BIG_FISH=5`). Shore fishing connects aquatic and terrestrial food webs.
+- [x] Entity library — `entities.json` standalone species definitions for external reuse.
 - LZ-string compression for share codes at large grid sizes
 - Mobile touch support
 

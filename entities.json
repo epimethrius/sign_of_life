@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "description": "Sign of Life — entity definitions and food-web relationships. Tuned for stable multi-species dynamics on a 50×50 grid.",
+
+  "layers": {
+    "LAYER_TERRAIN":    0,
+    "LAYER_VEGETATION": 1,
+    "LAYER_ANIMALS":    2
+  },
+
+  "typeIds": {
+    "vegetation": { "GRASS": 1, "TREE": 2, "LILY": 3 },
+    "animals":    { "HERBIVORE": 1, "PREDATOR": 2, "OMNIVORE": 3, "SMALL_FISH": 4, "BIG_FISH": 5, "BIRD": 6 }
+  },
+
+  "foodWeb": {
+    "comment": "Each entry lists what the species eats and what eats it.",
+    "grass":      { "eats": [],                                  "eatenBy": ["herbivore", "omnivore"] },
+    "tree":       { "eats": [],                                  "eatenBy": ["herbivore", "omnivore"] },
+    "lily":       { "eats": [],                                  "eatenBy": ["small_fish"] },
+    "herbivore":  { "eats": ["grass", "tree"],                   "eatenBy": ["predator", "bird"] },
+    "predator":   { "eats": ["herbivore", "small_fish (shore)"], "eatenBy": [] },
+    "omnivore":   { "eats": ["grass", "tree", "small_fish (shore)"], "eatenBy": ["predator"] },
+    "small_fish": { "eats": ["lily"],                            "eatenBy": ["big_fish", "predator (shore)", "omnivore (shore)", "bird (shore)"] },
+    "big_fish":   { "eats": ["small_fish"],                      "eatenBy": [] },
+    "bird":       { "eats": ["small_fish (shore)"],              "eatenBy": [] }
+  },
+
+  "entities": {
+    "grass": {
+      "id": "grass",
+      "name": "Grass",
+      "icon": "🌿",
+      "layer": "LAYER_VEGETATION",
+      "typeId": 1,
+      "terrain": ["soil", "sand"],
+      "description": "Fast-spreading ground cover. Replaced by trees over time.",
+      "params": {
+        "baseLifespan":     16,
+        "lifespanVariance": 0.2
+      },
+      "behavior": "Spreads onto adjacent empty land cells each tick."
+    },
+
+    "tree": {
+      "id": "tree",
+      "name": "Tree",
+      "icon": "🌲",
+      "layer": "LAYER_VEGETATION",
+      "typeId": 2,
+      "terrain": ["soil", "sand"],
+      "description": "Slow-growing. Spreads onto empty cells and can replace grass.",
+      "params": {
+        "baseLifespan":     42,
+        "lifespanVariance": 0.15
+      },
+      "behavior": "Spreads onto adjacent cells (including grass) at a slower rate than grass."
+    },
+
+    "lily": {
+      "id": "lily",
+      "name": "Lily",
+      "icon": "🪷",
+      "layer": "LAYER_VEGETATION",
+      "typeId": 3,
+      "terrain": ["water"],
+      "description": "Aquatic plant. Spreads across water surfaces.",
+      "params": {
+        "baseLifespan":     6,
+        "lifespanVariance": 0.2
+      },
+      "behavior": "Spreads onto adjacent water cells."
+    },
+
+    "herbivore": {
+      "id": "herbivore",
+      "name": "Herbivore",
+      "icon": "🐇",
+      "layer": "LAYER_ANIMALS",
+      "typeId": 1,
+      "terrain": ["soil", "sand", "rock"],
+      "description": "Grazes grass and trees. Flees predators. Reproduces by consuming vegetation.",
+      "params": {
+        "baseLifespan":         35,
+        "lifespanVariance":     0.4,
+        "baseEnergy":           12,
+        "energyDecayPerTick":   0.3,
+        "energyFromGrass":      6,
+        "energyFromTree":       6,
+        "reproThreshold":       10,
+        "reproCost":            5,
+        "reproCooldownDivisor": 3
+      },
+      "behavior": {
+        "dangerRadius":   2,
+        "fleeProb":       0.75,
+        "foodPriority":   ["eat-current-cell-veg", "move-toward-nearest-veg"],
+        "reproGate":      "must stand on GRASS or TREE; vegetation consumed on breed",
+        "wanderProb":     0.6
+      },
+      "spawnNearFood": { "layer": "LAYER_VEGETATION", "types": ["grass", "tree"] }
+    },
+
+    "predator": {
+      "id": "predator",
+      "name": "Predator",
+      "icon": "🦊",
+      "layer": "LAYER_ANIMALS",
+      "typeId": 2,
+      "terrain": ["soil", "sand", "rock"],
+      "description": "Hunts herbivores. Shore-fishes small fish as fallback.",
+      "params": {
+        "baseLifespan":         35,
+        "lifespanVariance":     0.2,
+        "baseEnergy":           25,
+        "energyDecayPerTick":   0.8,
+        "energyFromHerbivore":  15,
+        "energyFromFish":       8,
+        "reproThreshold":       20,
+        "reproCost":            10,
+        "reproCooldownDivisor": 2
+      },
+      "behavior": {
+        "preyTypes":    ["herbivore"],
+        "fishTypes":    ["small_fish"],
+        "searchRadius": 4,
+        "foodPriority": ["eat-adjacent-herbivore", "shore-fish-adjacent-water", "move-toward-nearest-herbivore"],
+        "wanderProb":   0.6
+      },
+      "spawnNearFood": { "layer": "LAYER_ANIMALS", "types": ["herbivore"] }
+    },
+
+    "omnivore": {
+      "id": "omnivore",
+      "name": "Omnivore",
+      "icon": "🦝",
+      "layer": "LAYER_ANIMALS",
+      "typeId": 3,
+      "terrain": ["soil", "sand", "rock"],
+      "description": "Coastal forager. Eats shore fish and vegetation. Flees predators. Reproduces by consuming vegetation.",
+      "params": {
+        "baseLifespan":         35,
+        "lifespanVariance":     0.25,
+        "baseEnergy":           12,
+        "energyDecayPerTick":   0.35,
+        "energyFromGrass":      6,
+        "energyFromTree":       6,
+        "energyFromFish":       10,
+        "reproThreshold":       10,
+        "reproCost":            5,
+        "reproCooldownDivisor": 3
+      },
+      "behavior": {
+        "dangerRadius":   2,
+        "fleeProb":       0.60,
+        "fishTypes":      ["small_fish"],
+        "foodPriority":   ["shore-fish-adjacent-water", "eat-current-cell-veg", "move-toward-nearest-veg"],
+        "reproGate":      "must stand on GRASS or TREE; vegetation consumed on breed",
+        "wanderProb":     0.6
+      },
+      "spawnNearFood": { "layer": "LAYER_VEGETATION", "types": ["grass", "tree"] }
+    },
+
+    "small_fish": {
+      "id": "small_fish",
+      "name": "Small Fish",
+      "icon": "🐟",
+      "layer": "LAYER_ANIMALS",
+      "typeId": 4,
+      "terrain": ["water"],
+      "description": "Aquatic herbivore. Eats lily pads. Prey for big fish and shore hunters.",
+      "params": {
+        "baseLifespan":         18,
+        "lifespanVariance":     0.25,
+        "baseEnergy":           8,
+        "energyDecayPerTick":   0.3,
+        "energyFromLily":       6,
+        "reproThreshold":       8,
+        "reproCost":            5,
+        "reproCooldownDivisor": 4
+      },
+      "behavior": {
+        "foodPriority": ["eat-current-cell-lily", "move-toward-nearest-lily"],
+        "wanderProb":   0.6
+      },
+      "spawnNearFood": null
+    },
+
+    "big_fish": {
+      "id": "big_fish",
+      "name": "Big Fish",
+      "icon": "🐠",
+      "layer": "LAYER_ANIMALS",
+      "typeId": 5,
+      "terrain": ["water"],
+      "description": "Aquatic predator. Eats small fish.",
+      "params": {
+        "baseLifespan":         40,
+        "lifespanVariance":     0.2,
+        "baseEnergy":           15,
+        "energyDecayPerTick":   0.3,
+        "energyFromSmallFish":  12,
+        "reproThreshold":       12,
+        "reproCost":            8,
+        "reproCooldownDivisor": 2
+      },
+      "behavior": {
+        "foodPriority": ["eat-adjacent-small-fish", "move-toward-nearest-small-fish"],
+        "wanderProb":   0.6
+      },
+      "spawnNearFood": null
+    },
+
+    "bird": {
+      "id": "bird",
+      "name": "Bird",
+      "icon": "🦅",
+      "layer": "LAYER_ANIMALS",
+      "typeId": 6,
+      "terrain": ["any"],
+      "description": "Aerial predator. Eats shore fish (preferred). Nests on trees or grass.",
+      "params": {
+        "baseLifespan":         35,
+        "lifespanVariance":     0.25,
+        "baseEnergy":           18,
+        "energyDecayPerTick":   0.5,
+        "energyFromHerbivore":  12,
+        "energyFromFish":       12,
+        "reproThreshold":       14,
+        "reproCost":            7,
+        "reproCooldownDivisor": 3
+      },
+      "behavior": {
+        "fishTypes":    ["small_fish"],
+        "searchRadius": 6,
+        "ignoresTerrainEnergyCost": true,
+        "foodPriority": ["shore-fish-adjacent-water", "move-toward-nearest-fish"],
+        "reproGate":    "must stand on GRASS or TREE; moves toward nearest tree/grass when ready",
+        "nestSites":    ["grass", "tree"],
+        "nestSearchRadius": 8,
+        "wanderProb":   0.7
+      },
+      "spawnNearFood": null
+    }
+  },
+
+  "recommendedConfig": {
+    "comment": "Tuned for stable multi-species survival on a 50×50 grid (30-run median survival rates in parentheses).",
+    "gridSize": 50,
+    "terrain": { "water": 15, "rock": 10, "sand": 10 },
+    "initialPopulation": {
+      "grass":      250,
+      "tree":       125,
+      "lily":        50,
+      "herbivore":   90,
+      "predator":    10,
+      "omnivore":    30,
+      "small_fish": 200,
+      "big_fish":     5,
+      "bird":        10
+    },
+    "survivalRates": {
+      "comment": "% of 30 runs where species is alive at tick 500",
+      "herbivore":  "~90%",
+      "predator":   "~18%",
+      "omnivore":   "~76%",
+      "small_fish": "~100%",
+      "big_fish":   "~80%",
+      "bird":       "~91%"
+    }
+  }
+}
