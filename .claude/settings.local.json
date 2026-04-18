@@ -32,7 +32,18 @@
       "Bash(node scripts/sim-runner.mjs --herb-lifespan=35 --tree-lifespan=42 --runs=60)",
       "Bash(node scripts/sim-runner.mjs --runs=60)",
       "Bash(node scripts/sim-runner.mjs --runs=60 --size=30)",
-      "Bash(node scripts/sim-runner.mjs --runs=60 --size=40)"
+      "Bash(node scripts/sim-runner.mjs --runs=60 --size=40)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3)",
+      "Bash(node scripts/sim-runner.mjs --pred-lifespan=25)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=25)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=30)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=4 --pred-lifespan=25)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=25 --pop-predator=50)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=35)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=4 --pred-lifespan=30)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=40)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=45)",
+      "Bash(node scripts/sim-runner.mjs --pred-cooldown=3 --pred-lifespan=35 --runs=60)"
     ]
   }
 }

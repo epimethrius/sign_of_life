@@ -31,15 +31,15 @@ export default {
     name:                 'Predator',
     icon:                 '🦊',
     description:          'Hunts herbivores and omnivores. Shore-fishes both fish types.',
-    baseLifespan:         20,
+    baseLifespan:         35,
     lifespanVariance:     0.2,
     baseEnergy:           25,
-    energyDecayPerTick:   1.2,
+    energyDecayPerTick:   0.8,
     energyFromHerbivore:  15,
     energyFromFish:       8,   // energy gained from shore fishing (either fish type)
     reproThreshold:       20,
     reproCost:            10,
-    reproCooldownDivisor: 2,
+    reproCooldownDivisor: 3,
     spawnNearFood: { layer: LAYER_ANIMALS, types: PREY_TYPES },
   },
 

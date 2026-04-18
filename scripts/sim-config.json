@@ -25,9 +25,9 @@
     "grassLifespan":        16,
     "treeLifespan":        42,
     "herbLifespan":        35,
-    "predLifespan":        20,
+    "predLifespan":        35,
     "herbCooldownDivisor":  3,
-    "predCooldownDivisor":  2
+    "predCooldownDivisor":  3
   },
 
   "seed":   null,
