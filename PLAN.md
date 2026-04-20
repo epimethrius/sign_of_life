@@ -308,6 +308,9 @@ seed + share UI, rule registry with enable/disable.
 - [x] **Default grid 50×50** — stochastic extinction dominates small grids; 50×50 is the functional minimum for stable multi-species dynamics.
 - [x] **Version source of truth** — `vite.config.js` now reads version from `package.json` instead of a hardcoded string. Current version: **1.0.0**.
 - [x] **Entity library** — `entities.json` at project root. Standalone JSON describing all 9 species (params, food-web, behavior summaries, recommended config). Reusable by external applications without the simulation engine.
+- [x] **Auto-fit canvas + zoom controls** — cell size is computed at startup and on every `window.resize` to fill ~72% of viewport height. `+` / `−` / `fit` buttons apply CSS `transform: scale()` in 0.25 steps (range 0.25× – 4×) without re-rendering. Tooltip hit-testing uses `getBoundingClientRect` and stays correct at any zoom.
+- [x] **Population inputs synced with sim-config** — `index.html` default values for predator (10), small fish (200), big fish (5), and bird (10) now match `scripts/sim-config.json`.
+- [x] **Birth/death ratio includes initial population** — entities seeded at tick 0 are now counted as births in the lifetime totals, so the death ratio column reflects true survival pressure rather than only post-init dynamics.
 
 ---
 
@@ -371,7 +374,8 @@ Candidate next steps (not yet tried):
 - [x] Aquatic vegetation: lily pads (LILY=3) spread across water cells; `_seedAquatic` seeds initial population on water tiles
 - [x] WebGL renderer: terrain + overlay rendered by a GLSL fragment shader (`renderer-webgl.js`); emoji icons remain on a transparent 2D canvas overlay (`renderer.js`). One full-screen quad draw call per tick; per-cell data packed into a small RGBA texture.
 - [x] Cell age / energy overlay render mode: `OVERLAY_AGE` (blue→green→red heat-map on age/lifespan ratio) and `OVERLAY_ENERGY` (red→yellow→green on animal energy). Selector + colour key added to the Map section. Mode is driven as a shader uniform — no extra JS per-cell cost.
-- [ ] Zoom & pan
+- [x] Zoom — auto-fit on load/resize; `+` / `−` / `fit` buttons (see M5+ above)
+- [ ] Pan — click-drag to scroll when canvas is zoomed in beyond fit
 - [ ] Pattern presets / saved worlds library
 
 ---

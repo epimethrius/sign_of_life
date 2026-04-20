@@ -237,6 +237,11 @@ function init(seed) {
   events.reset();
   resetLifetimeCounts();
 
+  // Count the initial seeded population as births at tick 0.
+  for (const k of ENTITY_KEYS) {
+    lifetimeBirths[_ekey(k)] = grid.countState(k.typeId, k.layer);
+  }
+
   seedDisplay.value      = seedToHex(currentSeed);
   shareInput.value       = encodeWorld(grid, currentSeed, rules);
   statsSumEl.textContent = '';
