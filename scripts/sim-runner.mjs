@@ -198,10 +198,12 @@ function patchRules(registry, opts) {
 // ── Seeding ───────────────────────────────────────────────────────────────────
 
 function seedLand(grid, rules, entityType, layer, count, rng) {
-  const rule  = rules.rules.find(r => r.entity?.typeId === entityType && r.entity?.layer === layer);
-  const baseLS = rule?.entity?.baseLifespan     ?? 0;
-  const lsVar  = rule?.entity?.lifespanVariance ?? 0;
-  const energy = rule?.entity?.baseEnergy       ?? 0;
+  const rule       = rules.rules.find(r => r.entity?.typeId === entityType && r.entity?.layer === layer);
+  const baseLS     = rule?.entity?.baseLifespan     ?? 0;
+  const lsVar      = rule?.entity?.lifespanVariance ?? 0;
+  const energy     = rule?.entity?.baseEnergy       ?? 0;
+  const decayBase  = rule?.entity?.energyDecayPerTick ?? 0;
+  const reproBase  = rule?.entity?.reproThreshold     ?? 0;
 
   // Build candidate list once; splice removes placed cells so we don't double-place.
   const candidates = [];
@@ -218,14 +220,21 @@ function seedLand(grid, rules, entityType, layer, count, rng) {
     const [x, y] = candidates.splice(idx, 1)[0];
     const ls     = baseLS > 0 ? computeLifespan(baseLS, lsVar, rng) : 0;
     grid.place(x, y, entityType, layer, ls, energy);
+    if (layer === LAYER_ANIMALS && decayBase > 0) {
+      const ci = y * grid.width + x;
+      grid.traitDecay[layer][ci] = decayBase;
+      grid.traitRepro[layer][ci] = reproBase;
+    }
   }
 }
 
 function seedWater(grid, rules, entityType, layer, count, rng) {
-  const rule   = rules.rules.find(r => r.entity?.typeId === entityType && r.entity?.layer === layer);
-  const baseLS = rule?.entity?.baseLifespan     ?? 0;
-  const lsVar  = rule?.entity?.lifespanVariance ?? 0;
-  const energy = rule?.entity?.baseEnergy       ?? 0;
+  const rule      = rules.rules.find(r => r.entity?.typeId === entityType && r.entity?.layer === layer);
+  const baseLS    = rule?.entity?.baseLifespan     ?? 0;
+  const lsVar     = rule?.entity?.lifespanVariance ?? 0;
+  const energy    = rule?.entity?.baseEnergy       ?? 0;
+  const decayBase = rule?.entity?.energyDecayPerTick ?? 0;
+  const reproBase = rule?.entity?.reproThreshold     ?? 0;
 
   const candidates = [];
   for (let y = 0; y < grid.height; y++) {
@@ -241,6 +250,11 @@ function seedWater(grid, rules, entityType, layer, count, rng) {
     const [x, y] = candidates.splice(idx, 1)[0];
     const ls     = baseLS > 0 ? computeLifespan(baseLS, lsVar, rng) : 0;
     grid.place(x, y, entityType, layer, ls, energy);
+    if (layer === LAYER_ANIMALS && decayBase > 0) {
+      const ci = y * grid.width + x;
+      grid.traitDecay[layer][ci] = decayBase;
+      grid.traitRepro[layer][ci] = reproBase;
+    }
   }
 }
 

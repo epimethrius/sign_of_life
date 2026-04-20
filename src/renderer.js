@@ -49,6 +49,10 @@ export class Renderer {
   draw() {
     const { ctx, grid } = this;
 
+    // Re-apply text alignment — canvas resize resets all context state.
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+
     // Clear to fully transparent so the WebGL terrain canvas shows through.
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
