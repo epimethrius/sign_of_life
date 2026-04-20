@@ -68,7 +68,11 @@
       "Bash(node scripts/sim-runner.mjs --runs=60 --size=20)",
       "Bash(node scripts/sim-runner.mjs --runs 30 --ticks 500 --size 75)",
       "Bash(node scripts/sim-runner.mjs --size=75 --pop-grass=562 --pop-tree=281 --pop-lily=112 --pop-herbivore=202 --pop-predator=22 --pop-omnivore=67 --pop-small-fish=449 --pop-big-fish=11 --pop-bird=22)",
-      "Bash(node scripts/sim-runner.mjs --size=100 --pop-grass=1000 --pop-tree=500 --pop-lily=200 --pop-herbivore=360 --pop-predator=40 --pop-omnivore=120 --pop-small-fish=800 --pop-big-fish=20 --pop-bird=40)"
+      "Bash(node scripts/sim-runner.mjs --size=100 --pop-grass=1000 --pop-tree=500 --pop-lily=200 --pop-herbivore=360 --pop-predator=40 --pop-omnivore=120 --pop-small-fish=800 --pop-big-fish=20 --pop-bird=40)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/)",
+      "Bash(node --input-type=module)",
+      "Bash(node -e ' *)"
     ]
   }
 }

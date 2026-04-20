@@ -50,11 +50,19 @@
 
     #map-col { display: flex; flex-direction: column; gap: 6px; }
 
+    /* Viewport wrapper — constrains layout footprint when canvas is CSS-scaled. */
+    #map-viewport {
+      position: relative;
+      overflow: visible;
+      /* width and height managed by JS (applyZoom) */
+    }
+
     /* Stacked canvas container — WebGL terrain behind, 2D icons on top. */
     #canvas-container {
       position: relative;
       display: inline-block;
       border: 1px solid #ccc;
+      /* transform: scale() and transform-origin set by JS */
     }
     #grid-canvas  { display: block; }
     #grid-icons   {
@@ -63,6 +71,17 @@
       top: 0; left: 0;
       pointer-events: none; /* mouse events pass through to WebGL canvas */
     }
+
+    /* ── zoom controls ── */
+    #zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: monospace;
+      font-size: 0.78rem;
+    }
+    #zoom-controls button { padding: 2px 8px; }
+    #zoom-level { min-width: 40px; text-align: center; color: #888; }
 
     /* ── overlay mode selector ── */
     #overlay-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; }
@@ -241,9 +260,18 @@
     <div id="world-area">
       <div id="map-col">
         <!-- WebGL terrain canvas + transparent 2D icon overlay -->
-        <div id="canvas-container">
-          <canvas id="grid-canvas"></canvas>
-          <canvas id="grid-icons"></canvas>
+        <div id="map-viewport">
+          <div id="canvas-container">
+            <canvas id="grid-canvas"></canvas>
+            <canvas id="grid-icons"></canvas>
+          </div>
+        </div>
+        <!-- Zoom controls -->
+        <div id="zoom-controls">
+          <button id="btn-zoom-out">−</button>
+          <span id="zoom-level">100%</span>
+          <button id="btn-zoom-in">+</button>
+          <button id="btn-zoom-fit">fit</button>
         </div>
         <!-- Season / weather indicator -->
         <div id="season-display" style="font-size:0.82rem;color:#666;min-height:1.2em;margin-top:4px;"></div>

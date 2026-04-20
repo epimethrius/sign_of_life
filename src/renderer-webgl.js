@@ -24,8 +24,10 @@ export const OVERLAY_NORMAL = 0;
 export const OVERLAY_AGE    = 1;
 export const OVERLAY_ENERGY = 2;
 
-export const CELL_SIZE = 40;
-export const GAP       = 1;
+export let CELL_SIZE = 40;
+export const GAP     = 1;
+
+export function setCellSize(n) { CELL_SIZE = n; }
 
 // Terrain palette (5 entries, typeId 0-4): empty, soil, sand, water, rock.
 // Must match src/terrains/*.js `color` fields exactly.

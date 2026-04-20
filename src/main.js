@@ -6,7 +6,7 @@ import {
   LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS,
 } from './grid.js';
 import { seasonState, resetSeasonState, SEASON_INFO, EVENT_INFO } from './season-state.js';
-import { WebGLRenderer, OVERLAY_NORMAL, OVERLAY_AGE, OVERLAY_ENERGY } from './renderer-webgl.js';
+import { WebGLRenderer, OVERLAY_NORMAL, OVERLAY_AGE, OVERLAY_ENERGY, setCellSize } from './renderer-webgl.js';
 import { Renderer }           from './renderer.js';
 import { Loop }               from './loop.js';
 import { StatsBuffer }        from './stats.js';
@@ -65,7 +65,44 @@ const popInputAnimals = {
   [BIG_FISH]:   document.getElementById('pop-big-fish'),
   [BIRD]:       document.getElementById('pop-bird'),
 };
-const seasonDisplayEl = document.getElementById('season-display');
+const seasonDisplayEl  = document.getElementById('season-display');
+const mapViewport      = document.getElementById('map-viewport');
+const canvasContainer  = document.getElementById('canvas-container');
+const zoomInBtn        = document.getElementById('btn-zoom-in');
+const zoomOutBtn       = document.getElementById('btn-zoom-out');
+const zoomFitBtn       = document.getElementById('btn-zoom-fit');
+const zoomLevelEl      = document.getElementById('zoom-level');
+
+// ── Zoom / fit ────────────────────────────────────────────────────────────────
+let zoomScale = 1.0;
+
+function computeFitCellSize(gridSize) {
+  const availH = Math.round(window.innerHeight * 0.72);
+  const availW = window.innerWidth - 300; // sidebar + padding estimate
+  return Math.max(6, Math.min(40, Math.floor(Math.min(availH, availW) / gridSize)));
+}
+
+function applyZoom() {
+  canvasContainer.style.transform       = `scale(${zoomScale})`;
+  canvasContainer.style.transformOrigin = 'top left';
+  mapViewport.style.width  = `${Math.round(canvas.width  * zoomScale)}px`;
+  mapViewport.style.height = `${Math.round(canvas.height * zoomScale)}px`;
+  zoomLevelEl.textContent  = `${Math.round(zoomScale * 100)}%`;
+}
+
+function fitToScreen() {
+  setCellSize(computeFitCellSize(grid.width));
+  webglRenderer.resize(grid);
+  iconRenderer.resize(grid);
+  zoomScale = 1.0;
+  applyZoom();
+  draw();
+}
+
+zoomInBtn.addEventListener('click',  () => { zoomScale = Math.min(4, parseFloat((zoomScale + 0.25).toFixed(2))); applyZoom(); });
+zoomOutBtn.addEventListener('click', () => { zoomScale = Math.max(0.25, parseFloat((zoomScale - 0.25).toFixed(2))); applyZoom(); });
+zoomFitBtn.addEventListener('click', fitToScreen);
+window.addEventListener('resize', fitToScreen);
 
 function getPopCount(typeId, layer) {
   const inp = layer === LAYER_VEGETATION
@@ -75,7 +112,9 @@ function getPopCount(typeId, layer) {
 }
 
 // ── Core objects ──────────────────────────────────────────────────────────────
-let grid          = new Grid(parseInt(gridSizeEl.value, 10), parseInt(gridSizeEl.value, 10));
+const _initSize = parseInt(gridSizeEl.value, 10);
+setCellSize(computeFitCellSize(_initSize));
+let grid          = new Grid(_initSize, _initSize);
 let webglRenderer = new WebGLRenderer(canvas, grid);
 let iconRenderer  = new Renderer(iconCanvas, grid);
 _applyEntityIcons();
@@ -441,10 +480,13 @@ gridSizeEl.addEventListener('change', () => {
 
   loop.stop();
   grid = new Grid(size, size);
+  setCellSize(computeFitCellSize(size));
   webglRenderer.resize(grid);
   iconRenderer.resize(grid);
+  zoomScale = 1.0;
   _applyEntityIcons();
   init();
+  applyZoom();
 });
 seedDisplay.addEventListener('change', () => {
   const seed = hexToSeed(seedDisplay.value);
@@ -659,10 +701,10 @@ function buildLegend() {
 const tooltipEl = document.getElementById('cell-tooltip');
 
 canvas.addEventListener('mousemove', e => {
-  const cellSize = canvas.width / grid.width;
-  const rect = canvas.getBoundingClientRect();
-  const cx   = Math.floor((e.clientX - rect.left) / cellSize);
-  const cy   = Math.floor((e.clientY - rect.top)  / cellSize);
+  const rect     = canvas.getBoundingClientRect();
+  const cellSize = rect.width / grid.width; // correct under any CSS scale or zoom
+  const cx = Math.floor((e.clientX - rect.left) / cellSize);
+  const cy = Math.floor((e.clientY - rect.top)  / cellSize);
   if (cx < 0 || cx >= grid.width || cy < 0 || cy >= grid.height) return;
 
   const lines = [];
@@ -724,3 +766,4 @@ buildTagFilter();
 rebuildRuleUI();
 buildLegend();
 init();
+applyZoom();
