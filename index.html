@@ -156,6 +156,23 @@
     #stats-wrapper td { padding: 2px 16px 2px 0; color: #666; }
     #stats-wrapper td:first-child { color: #333; }
 
+    /* ── trait evolution table ── */
+    #trait-wrapper {
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      color: #555;
+      margin-top: 8px;
+    }
+    #trait-wrapper th {
+      text-align: left;
+      color: #aaa;
+      font-weight: normal;
+      padding: 0 16px 4px 0;
+      border-bottom: 1px solid #ddd;
+    }
+    #trait-wrapper td { padding: 2px 16px 2px 0; color: #666; }
+    #trait-wrapper td:first-child { color: #333; }
+
     /* ── rows ── */
     .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
     .row label { display: flex; align-items: center; gap: 5px; font-size: 0.9rem; }
@@ -282,6 +299,7 @@
             <option value="0">Normal</option>
             <option value="1">Age</option>
             <option value="2">Energy</option>
+            <option value="3">Trait (Decay)</option>
           </select>
           <span id="overlay-key">
             <canvas class="key-swatch" id="key-swatch" width="80" height="10"></canvas>
@@ -328,6 +346,34 @@
     </table>
     <canvas id="chart-canvas"></canvas>
     <div id="stats-summary"></div>
+  </section>
+
+  <!-- ── Trait Evolution ── -->
+  <section>
+    <div class="section-header">Trait Evolution</div>
+    <div class="row" style="margin-bottom:8px">
+      <span class="inline-label">Species</span>
+      <select id="trait-species" style="font-family:monospace;font-size:0.82rem;border:1px solid #ccc;background:#f8f8f8;padding:2px 6px;">
+        <option value="1">🐇 Herbivore</option>
+        <option value="2">🦊 Predator</option>
+        <option value="3">🦝 Omnivore</option>
+        <option value="4">🐟 Small Fish</option>
+        <option value="5">🐠 Big Fish</option>
+        <option value="6">🦅 Bird</option>
+      </select>
+    </div>
+    <table id="trait-wrapper">
+      <thead>
+        <tr>
+          <th>Trait</th>
+          <th>Baseline</th>
+          <th>Pop. avg</th>
+          <th>Deviation</th>
+          <th>Range (min–max)</th>
+        </tr>
+      </thead>
+      <tbody id="trait-table"></tbody>
+    </table>
   </section>
 
   <hr />

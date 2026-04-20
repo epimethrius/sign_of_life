@@ -6,7 +6,7 @@ import {
   LAYER_TERRAIN, LAYER_VEGETATION, LAYER_ANIMALS,
 } from './grid.js';
 import { seasonState, resetSeasonState, SEASON_INFO, EVENT_INFO } from './season-state.js';
-import { WebGLRenderer, OVERLAY_NORMAL, OVERLAY_AGE, OVERLAY_ENERGY, setCellSize } from './renderer-webgl.js';
+import { WebGLRenderer, OVERLAY_NORMAL, OVERLAY_AGE, OVERLAY_ENERGY, OVERLAY_TRAIT, setCellSize } from './renderer-webgl.js';
 import { Renderer }           from './renderer.js';
 import { Loop }               from './loop.js';
 import { StatsBuffer }        from './stats.js';
@@ -66,6 +66,8 @@ const popInputAnimals = {
   [BIRD]:       document.getElementById('pop-bird'),
 };
 const seasonDisplayEl  = document.getElementById('season-display');
+const traitSpeciesEl   = document.getElementById('trait-species');
+const traitTableEl     = document.getElementById('trait-table');
 const mapViewport      = document.getElementById('map-viewport');
 const canvasContainer  = document.getElementById('canvas-container');
 const zoomInBtn        = document.getElementById('btn-zoom-in');
@@ -155,6 +157,16 @@ const ENTITY_KEYS = [
   { typeId: BIG_FISH,   layer: LAYER_ANIMALS,    label: 'Big Fish',   icon: '🐠', statsIdx: 7 },
   { typeId: BIRD,       layer: LAYER_ANIMALS,    label: 'Bird',       icon: '🦅', statsIdx: 8 },
 ];
+
+const TRAIT_BASELINES = {
+  [HERBIVORE]:  { decay: 0.30, repro: 10 },
+  [PREDATOR]:   { decay: 0.80, repro: 20 },
+  [OMNIVORE]:   { decay: 0.35, repro: 10 },
+  [SMALL_FISH]: { decay: 0.30, repro:  8 },
+  [BIG_FISH]:   { decay: 0.30, repro: 12 },
+  [BIRD]:       { decay: 0.50, repro: 14 },
+};
+webglRenderer.setTraitBaselines(TRAIT_BASELINES);
 
 let lifetimeBirths = {};
 let lifetimeDeaths = {};
@@ -283,6 +295,14 @@ function _seedMany(entityType, layer, count, foodConstraint, rng) {
     const [x, y] = candidates[Math.floor(rng() * candidates.length)];
     const ls = baseLifespan > 0 ? computeLifespan(baseLifespan, lifespanVariance, rng) : 0;
     grid.place(x, y, entityType, layer, ls, baseEnergy);
+    if (layer === LAYER_ANIMALS) {
+      const tb = TRAIT_BASELINES[entityType];
+      if (tb) {
+        const idx = y * grid.width + x;
+        grid.traitDecay[layer][idx] = tb.decay;
+        grid.traitRepro[layer][idx] = tb.repro;
+      }
+    }
   }
 }
 
@@ -307,6 +327,14 @@ function _seedAquatic(entityType, layer, count, rng) {
     candidates.splice(idx, 1);
     const ls = baseLifespan > 0 ? computeLifespan(baseLifespan, lifespanVariance, rng) : 0;
     grid.place(x, y, entityType, layer, ls, baseEnergy);
+    if (layer === LAYER_ANIMALS) {
+      const tb = TRAIT_BASELINES[entityType];
+      if (tb) {
+        const ci = y * grid.width + x;
+        grid.traitDecay[layer][ci] = tb.decay;
+        grid.traitRepro[layer][ci] = tb.repro;
+      }
+    }
   }
 }
 
@@ -382,6 +410,54 @@ function tick() {
   draw();
 }
 
+function updateTraitTable() {
+  if (!traitSpeciesEl || !traitTableEl) return;
+  const typeId   = parseInt(traitSpeciesEl.value, 10);
+  const key      = ENTITY_KEYS.find(k => k.typeId === typeId && k.layer === LAYER_ANIMALS);
+  const baseline = TRAIT_BASELINES[typeId];
+  if (!key || !baseline) return;
+
+  const al = LAYER_ANIMALS;
+  let sumDecay = 0, sumRepro = 0, count = 0;
+  let minDecay = Infinity, maxDecay = -Infinity;
+  let minRepro = Infinity, maxRepro = -Infinity;
+  for (let i = 0; i < grid.width * grid.height; i++) {
+    if (grid.layers[al][i] !== typeId) continue;
+    const d = grid.traitDecay[al][i];
+    const r = grid.traitRepro[al][i];
+    sumDecay += d; sumRepro += r; count++;
+    if (d < minDecay) minDecay = d;
+    if (d > maxDecay) maxDecay = d;
+    if (r < minRepro) minRepro = r;
+    if (r > maxRepro) maxRepro = r;
+  }
+
+  if (count === 0) {
+    traitTableEl.innerHTML = `<tr><td colspan="4" style="color:#bbb">No ${key.label} alive</td></tr>`;
+    return;
+  }
+
+  const avgDecay = sumDecay / count;
+  const avgRepro = sumRepro / count;
+  const fmtDev = (avg, base) => {
+    const pct = (avg - base) / base * 100;
+    const sign = pct >= 0 ? '+' : '';
+    return `${sign}${pct.toFixed(1)}%`;
+  };
+
+  traitTableEl.innerHTML =
+    `<tr><td>Energy decay/tick</td>` +
+    `<td>${baseline.decay}</td>` +
+    `<td>${avgDecay.toFixed(3)}</td>` +
+    `<td>${fmtDev(avgDecay, baseline.decay)}</td>` +
+    `<td>${minDecay.toFixed(3)}–${maxDecay.toFixed(3)}</td></tr>` +
+    `<tr><td>Repro threshold</td>` +
+    `<td>${baseline.repro}</td>` +
+    `<td>${avgRepro.toFixed(2)}</td>` +
+    `<td>${fmtDev(avgRepro, baseline.repro)}</td>` +
+    `<td>${minRepro.toFixed(2)}–${maxRepro.toFixed(2)}</td></tr>`;
+}
+
 function updateStatus(counts) {
   const c = counts ?? [
     grid.countState(GRASS,      LAYER_VEGETATION),
@@ -405,6 +481,7 @@ function updateStatus(counts) {
   }
   if (seasonDisplayEl) seasonDisplayEl.textContent = seasonText;
   chartRenderer.draw(stats);
+  updateTraitTable();
   statsTableEl.innerHTML = ENTITY_KEYS.map((k, i) => {
     const key    = _ekey(k);
     const pop    = c[i];
@@ -435,8 +512,9 @@ inputDelay.addEventListener('change', () => {
 // ── Overlay mode ──────────────────────────────────────────────────────────────
 const OVERLAY_META = {
   [OVERLAY_NORMAL]: null,
-  [OVERLAY_AGE]:    { lo: 'young', hi: 'old',    gradient: 'linear-gradient(to right, #385ced, #2ec82e, #e52626)' },
-  [OVERLAY_ENERGY]: { lo: 'critical', hi: 'full', gradient: 'linear-gradient(to right, #e01a1a, #f2cc1a, #1acc33)' },
+  [OVERLAY_AGE]:    { lo: 'young',     hi: 'old',      gradient: 'linear-gradient(to right, #385ced, #2ec82e, #e52626)' },
+  [OVERLAY_ENERGY]: { lo: 'critical',  hi: 'full',     gradient: 'linear-gradient(to right, #e01a1a, #f2cc1a, #1acc33)' },
+  [OVERLAY_TRAIT]:  { lo: 'efficient', hi: 'costly',   gradient: 'linear-gradient(to right, #336eff, #a6a6a6, #ff3333)' },
 };
 
 function updateOverlayKey() {
@@ -455,6 +533,10 @@ function updateOverlayKey() {
     grad.addColorStop(0,    '#385ced');
     grad.addColorStop(0.5,  '#2ec82e');
     grad.addColorStop(1.0,  '#e52626');
+  } else if (overlayMode === OVERLAY_TRAIT) {
+    grad.addColorStop(0,    '#336eff');
+    grad.addColorStop(0.5,  '#a6a6a6');
+    grad.addColorStop(1.0,  '#ff3333');
   } else {
     grad.addColorStop(0,    '#e01a1a');
     grad.addColorStop(0.4,  '#f2cc1a');
@@ -743,7 +825,11 @@ canvas.addEventListener('mousemove', e => {
     const energy  = grid.energy[LAYER_ANIMALS][i].toFixed(1);
     const cd      = grid.reproCooldown[LAYER_ANIMALS][i];
     const cdStr   = cd > 0 ? ` &nbsp; 🍼cd ${cd}` : '';
+    const decay   = grid.traitDecay[LAYER_ANIMALS][i].toFixed(3);
+    const repro   = grid.traitRepro[LAYER_ANIMALS][i].toFixed(2);
     lines.push(`${anKey.icon} ${anKey.label} &nbsp; age ${age}/${ls} &nbsp; ⚡${energy}${cdStr}`);
+    lines.push(`<span class="tt-layer">Traits</span>`);
+    lines.push(`decay ${decay} &nbsp; repro-thr ${repro}`);
   } else {
     lines.push('<span class="tt-empty">—</span>');
   }
@@ -761,6 +847,7 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('mouseleave', () => tooltipEl.classList.add('hidden'));
+traitSpeciesEl?.addEventListener('change', updateTraitTable);
 
 // ── Version ───────────────────────────────────────────────────────────────────
 document.getElementById('app-version').textContent =

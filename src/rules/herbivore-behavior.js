@@ -1,5 +1,5 @@
 import { HERBIVORE, PREDATOR, GRASS, TREE, LAYER_ANIMALS, LAYER_VEGETATION, LAYER_TERRAIN } from '../grid.js';
-import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors } from '../actions.js';
+import { computeLifespan, nearestFoodCell, emptyAnimalNeighbors, mutate } from '../actions.js';
 import { effectOf } from '../terrains/index.js';
 import { getSeasonEffect } from '../season-state.js';
 
@@ -53,9 +53,7 @@ export default {
   apply(grid, rng, events, movedThisTick = new Set()) {
     const e = this.entity;
     const al = LAYER_ANIMALS;
-    const decayMult       = getSeasonEffect('energyDecay');
-    const reproThreshEff  = e.reproThreshold * getSeasonEffect('reproThreshMult');
-    const hungerThreshold = reproThreshEff * (2 / 3);
+    const decayMult = getSeasonEffect('energyDecay');
 
     const cells = [];
     for (let y = 0; y < grid.height; y++)
@@ -68,7 +66,7 @@ export default {
 
       // ── Passive energy decay ─────────────────────────────────────────────────
       const terrainCost = effectOf(grid.get(x, y, LAYER_TERRAIN), 'moveEnergyCost');
-      grid.energy[al][i] -= e.energyDecayPerTick * terrainCost * decayMult;
+      grid.energy[al][i] -= grid.traitDecay[al][i] * terrainCost * decayMult;
 
       // ── Age & repro cooldown ─────────────────────────────────────────────────
       grid.age[al][i]++;
@@ -83,7 +81,9 @@ export default {
         continue;
       }
 
-      const energy  = grid.energy[al][i];
+      const energy         = grid.energy[al][i];
+      const reproThreshEff = grid.traitRepro[al][i] * getSeasonEffect('reproThreshMult');
+      const hungerThreshold = reproThreshEff * (2 / 3);
       const threat  = nearestThreat(grid, x, y);
       const targets = emptyAnimalNeighbors(grid, x, y, al);
 
@@ -116,9 +116,12 @@ export default {
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
+          const ni = ny * grid.width + nx;
+          grid.traitDecay[al][ni] = mutate(grid.traitDecay[al][i], e.energyDecayPerTick, rng);
+          grid.traitRepro[al][ni] = mutate(grid.traitRepro[al][i], e.reproThreshold, rng);
           grid.energy[al][i] -= e.reproCost;
           grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
-          grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
+          grid.reproCooldown[al][ni] = cooldown;
           events.log('birth', HERBIVORE, al);
           continue;
         }
@@ -166,9 +169,12 @@ export default {
           const ls = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, HERBIVORE, al, ls, e.baseEnergy);
+          const ni = ny * grid.width + nx;
+          grid.traitDecay[al][ni] = mutate(grid.traitDecay[al][i], e.energyDecayPerTick, rng);
+          grid.traitRepro[al][ni] = mutate(grid.traitRepro[al][i], e.reproThreshold, rng);
           grid.energy[al][i] -= e.reproCost;
           grid.reproCooldown[al][i] = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
-          grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
+          grid.reproCooldown[al][ni] = cooldown;
           grid.kill(x, y, LAYER_VEGETATION);
           events.log('birth', HERBIVORE, al);
         }

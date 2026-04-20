@@ -111,6 +111,16 @@ export function pickAction(actions, rng) {
  * @param {function(): number} rng
  * @returns {number} lifespan in whole ticks, minimum 1.
  */
+/**
+ * Returns a mutated copy of `value`, perturbed by up to `rate` fraction in
+ * either direction, clamped within `cap` fraction of `baseline`.
+ * Uses the seeded RNG so runs stay reproducible.
+ */
+export function mutate(value, baseline, rng, rate = 0.08, cap = 0.40) {
+  const delta = (rng() * 2 - 1) * rate;
+  return Math.max(baseline * (1 - cap), Math.min(baseline * (1 + cap), value * (1 + delta)));
+}
+
 export function computeLifespan(base, variance, rng) {
   const delta = base * variance;
   return Math.max(1, Math.round(base + (rng() * 2 - 1) * delta));

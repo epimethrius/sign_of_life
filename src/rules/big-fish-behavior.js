@@ -21,7 +21,7 @@ import {
   LAYER_ANIMALS, LAYER_TERRAIN,
   WATER,
 } from '../grid.js';
-import { computeLifespan, nearestFoodCell, emptyWaterNeighbors } from '../actions.js';
+import { computeLifespan, nearestFoodCell, emptyWaterNeighbors, mutate } from '../actions.js';
 import { getSeasonEffect } from '../season-state.js';
 
 export default {
@@ -53,9 +53,7 @@ export default {
     const e  = this.entity;
     const al = LAYER_ANIMALS;
 
-    const decayMult      = getSeasonEffect('energyDecay');
-    const reproThreshEff = e.reproThreshold * getSeasonEffect('reproThreshMult');
-    const hungerThresh   = reproThreshEff * (2 / 3);
+    const decayMult = getSeasonEffect('energyDecay');
 
     const cells = [];
     for (let y = 0; y < grid.height; y++)
@@ -67,7 +65,7 @@ export default {
       const i = y * grid.width + x;
 
       // ── Passive energy decay ──────────────────────────────────────────────────
-      grid.energy[al][i] -= e.energyDecayPerTick * decayMult;
+      grid.energy[al][i] -= grid.traitDecay[al][i] * decayMult;
 
       // ── Age & repro cooldown ──────────────────────────────────────────────────
       grid.age[al][i]++;
@@ -84,7 +82,9 @@ export default {
 
       if (movedThisTick.has(i)) continue;
 
-      const energy  = grid.energy[al][i];
+      const energy          = grid.energy[al][i];
+      const reproThreshEff  = grid.traitRepro[al][i] * getSeasonEffect('reproThreshMult');
+      const hungerThresh    = reproThreshEff * (2 / 3);
       const targets = emptyWaterNeighbors(grid, x, y, al);
 
       // ── 1. Hungry: seek small fish ─────────────────────────────────────────────
@@ -136,9 +136,12 @@ export default {
           const ls       = computeLifespan(e.baseLifespan, e.lifespanVariance, rng);
           const cooldown = Math.max(1, Math.floor(ls / e.reproCooldownDivisor));
           grid.place(nx, ny, BIG_FISH, al, ls, e.baseEnergy);
+          const ni = ny * grid.width + nx;
+          grid.traitDecay[al][ni] = mutate(grid.traitDecay[al][i], e.energyDecayPerTick, rng);
+          grid.traitRepro[al][ni] = mutate(grid.traitRepro[al][i], e.reproThreshold, rng);
           grid.energy[al][i] -= e.reproCost;
-          grid.reproCooldown[al][i]                    = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
-          grid.reproCooldown[al][ny * grid.width + nx] = cooldown;
+          grid.reproCooldown[al][i]  = Math.max(1, Math.floor(grid.lifespan[al][i] / e.reproCooldownDivisor));
+          grid.reproCooldown[al][ni] = cooldown;
           events.log('birth', BIG_FISH, al);
         }
 

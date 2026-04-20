@@ -23,6 +23,7 @@ import {
 export const OVERLAY_NORMAL = 0;
 export const OVERLAY_AGE    = 1;
 export const OVERLAY_ENERGY = 2;
+export const OVERLAY_TRAIT  = 3;
 
 export let CELL_SIZE = 40;
 export const GAP     = 1;
@@ -56,7 +57,7 @@ varying vec2 v_uv;
 
 uniform sampler2D u_data;      // per-cell RGBA data texture
 uniform sampler2D u_terrain;   // 5×1 terrain palette texture
-uniform int       u_mode;      // 0=normal 1=age 2=energy
+uniform int       u_mode;      // 0=normal 1=age 2=energy 3=trait(decay)
 uniform float     u_gridW;
 uniform float     u_gridH;
 uniform float     u_gapFrac;   // gap fraction within a cell (GAP / CELL_SIZE)
@@ -66,6 +67,16 @@ vec3 ageColor(float t) {
   if (t < 0.5)
     return mix(vec3(0.22, 0.52, 0.92), vec3(0.18, 0.78, 0.18), t * 2.0);
   return mix(vec3(0.18, 0.78, 0.18), vec3(0.90, 0.15, 0.15), (t - 0.5) * 2.0);
+}
+
+// blue → gray → red  (evolved-efficient → baseline → evolved-costly)
+vec3 traitColor(float t) {
+  vec3 lo = vec3(0.20, 0.45, 1.00);
+  vec3 mid = vec3(0.65, 0.65, 0.65);
+  vec3 hi  = vec3(1.00, 0.20, 0.20);
+  if (t < 0.5)
+    return mix(lo, mid, t * 2.0);
+  return mix(mid, hi, (t - 0.5) * 2.0);
 }
 
 // red → yellow → green  (critical → healthy)
@@ -120,6 +131,13 @@ void main() {
     } else {
       color = tc;
     }
+  } else if (u_mode == 3) {
+    // Trait overlay: B channel repurposed as decay-trait deviation (0=improved, 0.5=baseline, 1=worsened).
+    if (hasAnimal) {
+      color = traitColor(anEnergy);
+    } else {
+      color = tc;
+    }
   } else {
     color = tc;
   }
@@ -161,6 +179,8 @@ export class WebGLRenderer {
 
     // Normalisation cap for animal energy (predator base is 25; 50 gives headroom).
     this.maxEnergy = 50.0;
+    // Map typeId → { decay: number } for trait overlay normalisation. Set via setTraitBaselines().
+    this._traitBaselines = {};
 
     this._setSize();
 
@@ -232,7 +252,7 @@ export class WebGLRenderer {
   }
 
   /** Rebuild the CPU-side data buffer from current grid state. */
-  _updateDataBuf() {
+  _updateDataBuf(overlayMode = OVERLAY_NORMAL) {
     const { grid, _dataBuf: buf, maxEnergy } = this;
     const n  = grid.width * grid.height;
     const tl = LAYER_TERRAIN;
@@ -257,10 +277,20 @@ export class WebGLRenderer {
         buf[i * 4 + 1] = 0;
       }
 
-      // B: animal energy ratio (0..maxEnergy → 0..255).
-      buf[i * 4 + 2] = hasAnimal
-        ? Math.min(255, Math.round(Math.max(0, grid.energy[al][i]) / maxEnergy * 255))
-        : 0;
+      // B: animal energy ratio normally; trait deviation in OVERLAY_TRAIT mode.
+      if (hasAnimal) {
+        if (overlayMode === OVERLAY_TRAIT) {
+          const anType   = grid.layers[al][i];
+          const baseline = this._traitBaselines[anType]?.decay ?? 1;
+          const lo = baseline * 0.60, hi = baseline * 1.40;
+          buf[i * 4 + 2] = Math.max(0, Math.min(255,
+            Math.round((grid.traitDecay[al][i] - lo) / (hi - lo) * 255)));
+        } else {
+          buf[i * 4 + 2] = Math.min(255, Math.round(Math.max(0, grid.energy[al][i]) / maxEnergy * 255));
+        }
+      } else {
+        buf[i * 4 + 2] = 0;
+      }
 
       // A: animal age ratio.
       if (hasAnimal) {
@@ -276,6 +306,9 @@ export class WebGLRenderer {
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
+  /** Provide baseline trait values per typeId for OVERLAY_TRAIT normalisation. */
+  setTraitBaselines(map) { this._traitBaselines = map; }
+
   /** Call after changing grid dimensions (e.g. grid size selector). */
   resize(newGrid) {
     this.grid    = newGrid;
@@ -284,11 +317,11 @@ export class WebGLRenderer {
     this._initDataTex();
   }
 
-  /** @param {0|1|2} overlayMode */
+  /** @param {0|1|2|3} overlayMode */
   draw(overlayMode = OVERLAY_NORMAL) {
     const { gl, grid } = this;
 
-    this._updateDataBuf();
+    this._updateDataBuf(overlayMode);
 
     // Upload updated data texture.
     gl.bindTexture(gl.TEXTURE_2D, this._dataTex);

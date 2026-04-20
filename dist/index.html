@@ -50,11 +50,19 @@
 
     #map-col { display: flex; flex-direction: column; gap: 6px; }
 
+    /* Viewport wrapper — constrains layout footprint when canvas is CSS-scaled. */
+    #map-viewport {
+      position: relative;
+      overflow: visible;
+      /* width and height managed by JS (applyZoom) */
+    }
+
     /* Stacked canvas container — WebGL terrain behind, 2D icons on top. */
     #canvas-container {
       position: relative;
       display: inline-block;
       border: 1px solid #ccc;
+      /* transform: scale() and transform-origin set by JS */
     }
     #grid-canvas  { display: block; }
     #grid-icons   {
@@ -63,6 +71,17 @@
       top: 0; left: 0;
       pointer-events: none; /* mouse events pass through to WebGL canvas */
     }
+
+    /* ── zoom controls ── */
+    #zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: monospace;
+      font-size: 0.78rem;
+    }
+    #zoom-controls button { padding: 2px 8px; }
+    #zoom-level { min-width: 40px; text-align: center; color: #888; }
 
     /* ── overlay mode selector ── */
     #overlay-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; }
@@ -136,6 +155,23 @@
     }
     #stats-wrapper td { padding: 2px 16px 2px 0; color: #666; }
     #stats-wrapper td:first-child { color: #333; }
+
+    /* ── trait evolution table ── */
+    #trait-wrapper {
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      color: #555;
+      margin-top: 8px;
+    }
+    #trait-wrapper th {
+      text-align: left;
+      color: #aaa;
+      font-weight: normal;
+      padding: 0 16px 4px 0;
+      border-bottom: 1px solid #ddd;
+    }
+    #trait-wrapper td { padding: 2px 16px 2px 0; color: #666; }
+    #trait-wrapper td:first-child { color: #333; }
 
     /* ── rows ── */
     .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -230,7 +266,7 @@
     .tt-layer { color: #aaa; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
     .tt-empty { color: #ccc; }
   </style>
-  <script type="module" crossorigin src="./assets/index-CHZiKZkX.js"></script>
+  <script type="module" crossorigin src="./assets/index-B4ddCgvm.js"></script>
 </head>
 <body>
   <h1>Sign of Life</h1>
@@ -242,9 +278,18 @@
     <div id="world-area">
       <div id="map-col">
         <!-- WebGL terrain canvas + transparent 2D icon overlay -->
-        <div id="canvas-container">
-          <canvas id="grid-canvas"></canvas>
-          <canvas id="grid-icons"></canvas>
+        <div id="map-viewport">
+          <div id="canvas-container">
+            <canvas id="grid-canvas"></canvas>
+            <canvas id="grid-icons"></canvas>
+          </div>
+        </div>
+        <!-- Zoom controls -->
+        <div id="zoom-controls">
+          <button id="btn-zoom-out">−</button>
+          <span id="zoom-level">100%</span>
+          <button id="btn-zoom-in">+</button>
+          <button id="btn-zoom-fit">fit</button>
         </div>
         <!-- Season / weather indicator -->
         <div id="season-display" style="font-size:0.82rem;color:#666;min-height:1.2em;margin-top:4px;"></div>
@@ -255,6 +300,7 @@
             <option value="0">Normal</option>
             <option value="1">Age</option>
             <option value="2">Energy</option>
+            <option value="3">Trait (Decay)</option>
           </select>
           <span id="overlay-key">
             <canvas class="key-swatch" id="key-swatch" width="80" height="10"></canvas>
@@ -265,6 +311,21 @@
       <div id="legend">
         <div id="legend-content"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ── Controls ── -->
+  <section>
+    <div class="row">
+      <button id="btn-next">Next Tick</button>
+      <button id="btn-reset">Reset</button>
+      <label>
+        <input type="checkbox" id="toggle-auto" />
+        Auto
+      </label>
+      <label>
+        Delay (ms): <input type="text" id="input-delay" value="500" />
+      </label>
     </div>
   </section>
 
@@ -288,23 +349,35 @@
     <div id="stats-summary"></div>
   </section>
 
-  <hr />
-
-  <!-- ── Controls ── -->
+  <!-- ── Trait Evolution ── -->
   <section>
-    <div class="section-header">Controls</div>
-    <div class="row">
-      <button id="btn-next">Next Tick</button>
-      <button id="btn-reset">Reset</button>
-      <label>
-        <input type="checkbox" id="toggle-auto" />
-        Auto
-      </label>
-      <label>
-        Delay (ms): <input type="text" id="input-delay" value="500" />
-      </label>
+    <div class="section-header">Trait Evolution</div>
+    <div class="row" style="margin-bottom:8px">
+      <span class="inline-label">Species</span>
+      <select id="trait-species" style="font-family:monospace;font-size:0.82rem;border:1px solid #ccc;background:#f8f8f8;padding:2px 6px;">
+        <option value="1">🐇 Herbivore</option>
+        <option value="2">🦊 Predator</option>
+        <option value="3">🦝 Omnivore</option>
+        <option value="4">🐟 Small Fish</option>
+        <option value="5">🐠 Big Fish</option>
+        <option value="6">🦅 Bird</option>
+      </select>
     </div>
+    <table id="trait-wrapper">
+      <thead>
+        <tr>
+          <th>Trait</th>
+          <th>Baseline</th>
+          <th>Pop. avg</th>
+          <th>Deviation</th>
+          <th>Range (min–max)</th>
+        </tr>
+      </thead>
+      <tbody id="trait-table"></tbody>
+    </table>
   </section>
+
+  <hr />
 
   <!-- ── Parameters ── -->
   <section>
@@ -321,6 +394,8 @@
             <option value="20">20 × 20</option>
             <option value="25">25 × 25</option>
             <option value="30">30 × 30</option>
+            <option value="40">40 × 40</option>
+            <option value="50" selected>50 × 50</option>
           </select>
         </label>
       </div>
@@ -330,12 +405,15 @@
     <div style="margin-bottom:12px">
       <div class="inline-label" style="margin-bottom:6px;display:block">Initial population</div>
       <div id="pop-grid">
-        <label>🌿 Grass <input type="number" class="pop-n" id="pop-grass" value="5" min="0" max="99" /></label>
-        <label>🌲 Tree <input type="number" class="pop-n" id="pop-tree" value="3" min="0" max="99" /></label>
-        <label>🪷 Lily <input type="number" class="pop-n" id="pop-lily" value="2" min="0" max="99" /></label>
-        <label>🐇 Herbivore <input type="number" class="pop-n" id="pop-herbivore" value="4" min="0" max="99" /></label>
-        <label>🦊 Predator <input type="number" class="pop-n" id="pop-predator" value="2" min="0" max="99" /></label>
-        <label>🦝 Omnivore <input type="number" class="pop-n" id="pop-omnivore" value="3" min="0" max="99" /></label>
+        <label>🌿 Grass <input type="number" class="pop-n" id="pop-grass" value="250" min="0" max="999" /></label>
+        <label>🌲 Tree <input type="number" class="pop-n" id="pop-tree" value="125" min="0" max="999" /></label>
+        <label>🪷 Lily <input type="number" class="pop-n" id="pop-lily" value="50" min="0" max="999" /></label>
+        <label>🐇 Herbivore <input type="number" class="pop-n" id="pop-herbivore" value="90" min="0" max="999" /></label>
+        <label>🦊 Predator <input type="number" class="pop-n" id="pop-predator" value="10" min="0" max="999" /></label>
+        <label>🦝 Omnivore <input type="number" class="pop-n" id="pop-omnivore" value="30" min="0" max="999" /></label>
+        <label>🐟 Small Fish <input type="number" class="pop-n" id="pop-small-fish" value="200" min="0" max="999" /></label>
+        <label>🐠 Big Fish <input type="number" class="pop-n" id="pop-big-fish" value="5" min="0" max="999" /></label>
+        <label>🦅 Bird <input type="number" class="pop-n" id="pop-bird" value="10" min="0" max="999" /></label>
       </div>
     </div>
 

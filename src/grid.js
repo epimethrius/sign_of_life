@@ -47,6 +47,9 @@ export class Grid {
     this.energy       = Array.from({ length: NUM_LAYERS }, () => new Float32Array(this.size));
     // Ticks remaining before this animal may reproduce again (0 = ready).
     this.reproCooldown = Array.from({ length: NUM_LAYERS }, () => new Uint16Array(this.size));
+    // Heritable traits — only meaningful for LAYER_ANIMALS; 0 = not an animal.
+    this.traitDecay = Array.from({ length: NUM_LAYERS }, () => new Float32Array(this.size));
+    this.traitRepro = Array.from({ length: NUM_LAYERS }, () => new Float32Array(this.size));
   }
 
   // ── Core accessors ───────────────────────────────────────────────────────────
@@ -84,6 +87,8 @@ export class Grid {
     this.lifespan[layer][i]      = 0;
     this.energy[layer][i]        = 0;
     this.reproCooldown[layer][i] = 0;
+    this.traitDecay[layer][i]    = 0;
+    this.traitRepro[layer][i]    = 0;
   }
 
   /**
@@ -99,11 +104,15 @@ export class Grid {
     this.lifespan[layer][ti]      = this.lifespan[layer][fi];
     this.energy[layer][ti]        = this.energy[layer][fi];
     this.reproCooldown[layer][ti] = this.reproCooldown[layer][fi];
+    this.traitDecay[layer][ti]    = this.traitDecay[layer][fi];
+    this.traitRepro[layer][ti]    = this.traitRepro[layer][fi];
     this.layers[layer][fi]        = EMPTY;
     this.age[layer][fi]           = 0;
     this.lifespan[layer][fi]      = 0;
     this.energy[layer][fi]        = 0;
     this.reproCooldown[layer][fi] = 0;
+    this.traitDecay[layer][fi]    = 0;
+    this.traitRepro[layer][fi]    = 0;
   }
 
   inBounds(x, y) {
@@ -157,6 +166,8 @@ export class Grid {
     this.lifespan[layer].fill(0);
     this.energy[layer].fill(0);
     this.reproCooldown[layer].fill(0);
+    this.traitDecay[layer].fill(0);
+    this.traitRepro[layer].fill(0);
   }
 
   clearAll() {
@@ -166,6 +177,8 @@ export class Grid {
       this.lifespan[l].fill(0);
       this.energy[l].fill(0);
       this.reproCooldown[l].fill(0);
+      this.traitDecay[l].fill(0);
+      this.traitRepro[l].fill(0);
     }
   }
 }
